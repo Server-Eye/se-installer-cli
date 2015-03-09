@@ -40,7 +40,7 @@ Creating customers with this is not yet supported.
 
 .LINK
 
-https://www.server-eye.com
+http://server-eye.github.io/se-installer-cli/
 
 #>
 

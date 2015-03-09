@@ -1,11 +1,11 @@
 ﻿<#
- 
+
 .SYNOPSIS
-This is the (mostly) silent Server-Eye installer. 
- 
+This is the (mostly) silent Server-Eye installer.
+
 .DESCRIPTION
 This script will help to install Server-Eye on systems without a full UI or when a full interactive setup is not needed.
-Right now this script can download the current version of the client, install the client, setup an OCC-Connector and setup a Sensorhub. 
+Right now this script can download the current version of the client, install the client, setup an OCC-Connector and setup a Sensorhub.
 
 .PARAMETER Download
 Downloads the newest .msi files for Server-Eye.
@@ -34,20 +34,20 @@ This will also set up a Sensorhub on this computer for the given customer.
 The parameters Customer, Secret and ParentGuid are required for this.
 
 
- 
+
 .NOTES
 Creating customers with this is not yet supported.
- 
+
 .LINK
- 
-https://www.server-eye.de
- 
+
+http://server-eye.github.io/se-installer-cli/
+
 #>
 
-[CmdletBinding(DefaultParametersetName='None')] 
+[CmdletBinding(DefaultParametersetName='None')]
 
 param(
-    [switch] $Install, 
+    [switch] $Install,
     [switch] $Download,
     [Parameter(ParameterSetName='DeployData', Mandatory=$true)] [ValidateSet("All", "SensorHubOnly")] [string] $Deploy,
     [Parameter(ParameterSetName='DeployData', Mandatory=$true)] [string] $Customer,
@@ -56,7 +56,7 @@ param(
     [Parameter(ParameterSetName='DeployData', Mandatory=$false)] [string] $ParentGuid,
     [Parameter(ParameterSetName='DeployData', Mandatory=$false)] [string] $HubPort ="11010",
     [Parameter(ParameterSetName='DeployData', Mandatory=$false)] [string] $ConnectorPort="11002"
-    
+
 )
 
 $version = 369
@@ -143,7 +143,7 @@ function doDownload() {
     Write-Host "  downloading ServerEye.Vendor... " -NoNewline
     DownloadFile "$baseDownloadUrl/Vendor.msi" "$wd\Vendor.msi"
     Write-Host "done" -ForegroundColor Green
-        
+
     Write-Host "  downloading ServerEye.Core... " -NoNewline
     DownloadFile "$baseDownloadUrl/ServerEye.msi" "$wd\ServerEye.msi"
     Write-Host "done" -ForegroundColor Green
@@ -267,7 +267,7 @@ function createSensorHubConfig() {
 
     Write-Host "done" -ForegroundColor Green
 
-    
+
 }
 
 function DownloadFile($url, $targetFile) {
@@ -304,7 +304,7 @@ function checkForUpdate() {
         Write-Host "Please update to the newest version with this command:"
         Write-Host "Invoke-WebRequest ""$baseDownloadUrl/Deploy-ServerEye.ps1"" -OutFile Deploy-ServerEye.ps1"
         exit 1
-    }  
+    }
 }
 
 If (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(`
@@ -319,9 +319,9 @@ checkForUpdate
 $wd = split-path $MyInvocation.MyCommand.Path
 
 if ($Install -eq $false -and $Download -eq $false -and $Deploy -eq "") {
-   
+
     printHelp
-    
+
     exit 0
 }
 
