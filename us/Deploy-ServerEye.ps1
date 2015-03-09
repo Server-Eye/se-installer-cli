@@ -106,7 +106,7 @@ function printHelp() {
     Write-Host "$me -Deploy [All|SensorHubOnly] -Customer XXXX -Secret YYYY"
     Write-Host "Sets up Server-Eye on this computer using the given customer and secret key.`n"
 
-    Write-Host "$me -Downlod -Install -Deploy [All|SensorHubOnly] -Customer XXXX -Secret YYYY"
+    Write-Host "$me -Download -Install -Deploy [All|SensorHubOnly] -Customer XXXX -Secret YYYY"
     Write-Host "Does all of the above.`n"
 
 
