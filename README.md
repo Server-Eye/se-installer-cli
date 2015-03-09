@@ -33,3 +33,9 @@ Installs Server-Eye using the .msi files in the current directory.
 This will download the current version of ServerEye and install it on this computer.
 This will also set up an OCC-Connector and a Sensorhub on this computer for the given customer.
 The parameters Customer and Secret are required for this.
+
+### Everything
+```PowerShell
+.\Deploy-ServerEye.ps1 -Download -Install -Deploy [All|SensorhubOnly] -Customer <CustomerID> -Secret <SecretKey> [-ParentGuid <OccConnectorId]
+```
+Does all of the above. Downloads, installs and sets up Server-Eye.
