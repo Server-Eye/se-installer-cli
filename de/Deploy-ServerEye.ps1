@@ -59,7 +59,7 @@ param(
 
 )
 
-$version = 369
+$version = 370
 $occServer = "occ.server-eye.de"
 $apiServer = "api.server-eye.de"
 $configServer = "config.server-eye.de"
@@ -86,7 +86,7 @@ function printHeader() {
     Write-Host " \__ \/ -_) '_\ V / -_) '_|___| _| || / -_)" -ForegroundColor DarkYellow
     Write-Host " |___/\___|_|  \_/\___|_|     |___\_, \___|" -ForegroundColor DarkYellow
     Write-Host "                                  |__/     " -ForegroundColor DarkYellow
-    Write-Host "                            Version 3.5.369`n" -ForegroundColor DarkGray
+    Write-Host "                            Version 3.5.370`n" -ForegroundColor DarkGray
     Write-Host "Welcome to the (mostly) silent Server-Eye installer`n"
 }
 
@@ -220,8 +220,8 @@ function createOccConnectorConfig() {
     while ($guid -eq "" -and $wait -lt $maxWait ) {
         $x = Get-Content $confFile | Select-String "guid"
         #$x = $x.Trim();
-        if ($x.Length -eq 1) {
-            $splitX = $x.ToString().Split("=")
+        if ($x.Line.Length -gt 1) {
+            $splitX = $x.Line.ToString().Split("=")
             $guid = $splitX[1]
         }
         sleep 1
@@ -290,7 +290,8 @@ function DownloadFile($url, $targetFile) {
        Write-Progress -activity "Downloading file '$($url.split('/') | Select -Last 1)'" -status "Downloaded ($([System.Math]::Floor($downloadedBytes/1024))K of $($totalLength)K): " -PercentComplete ((([System.Math]::Floor($downloadedBytes/1024)) / $totalLength)  * 100)
    }
 
-   Write-Progress -activity "Finished downloading file '$($url.split('/') | Select -Last 1)'"
+   Write-Progress -activity "Finished downloading file '$($url.split('/') | Select -Last 1)'" -Status "Done" -Completed
+
    $targetStream.Flush()
    $targetStream.Close()
    $targetStream.Dispose()
@@ -298,8 +299,12 @@ function DownloadFile($url, $targetFile) {
 }
 
 function checkForUpdate() {
-    $req = Invoke-WebRequest "$baseDownloadUrl/currentVersion"
-    if ($version -lt $req.ToString()) {
+    $r = [System.Net.WebRequest]::Create("$baseDownloadUrl/currentVersion")
+    $resp = $r.GetResponse()
+    $reqstream = $resp.GetResponseStream()
+    $sr = new-object System.IO.StreamReader $reqstream
+    $result = $sr.ReadToEnd()
+    if ($version -lt $result) {
         Write-Host "This version of the Server-Eye deployment script is no longer supported."
         Write-Host "Please update to the newest version with this command:"
         Write-Host "Invoke-WebRequest ""$baseDownloadUrl/Deploy-ServerEye.ps1"" -OutFile Deploy-ServerEye.ps1"
@@ -314,11 +319,17 @@ If (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
     exit 1
 }
 
+If ([environment]::OSVersion.Version.Major -lt 6) {
+    Write-Output ""
+    Write-Warning "Your operating system is not officially supported.`nThe install will most likely work but we can no longer provide support for Server-Eye on this system."
+    Write-Output ""
+}
+
 checkForUpdate
 
 $wd = split-path $MyInvocation.MyCommand.Path
 
-if ($Install -eq $false -and $Download -eq $false -and $Deploy -eq "") {
+if ($Install.IsPresent -eq $false -and $Download.IsPresent -eq $false -and ( $Deploy -eq "" -or $Deploy -eq $null)) {
 
     printHelp
 
