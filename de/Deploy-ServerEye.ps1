@@ -59,7 +59,7 @@ param(
 
 )
 
-$version = 370
+$version = 371
 $occServer = "occ.server-eye.de"
 $apiServer = "api.server-eye.de"
 $configServer = "config.server-eye.de"
@@ -86,7 +86,7 @@ function printHeader() {
     Write-Host " \__ \/ -_) '_\ V / -_) '_|___| _| || / -_)" -ForegroundColor DarkYellow
     Write-Host " |___/\___|_|  \_/\___|_|     |___\_, \___|" -ForegroundColor DarkYellow
     Write-Host "                                  |__/     " -ForegroundColor DarkYellow
-    Write-Host "                            Version 3.5.370`n" -ForegroundColor DarkGray
+    Write-Host "                            Version 3.5.371`n" -ForegroundColor DarkGray
     Write-Host "Welcome to the (mostly) silent Server-Eye installer`n"
 }
 
@@ -114,6 +114,30 @@ function printHelp() {
 
 function main() {
     printHeader
+
+    #Really install OCC Connector?
+    if ($Deploy -eq "All") {
+        $yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes, this will be the only OCC-Connector.","This will continue to set up the OCC-Connector."
+        $no = New-Object System.Management.Automation.Host.ChoiceDescription "&No, another OCC-Connector is already running.  ","This will cancel everything and end this installer."
+        $unkown = New-Object System.Management.Automation.Host.ChoiceDescription "I &don't know. ","Pick this if you are unsure."
+        $choices = [System.Management.Automation.Host.ChoiceDescription[]]($yes,$no, $unkown)
+        $caption = ""
+        $message = "Only one OCC-Connector should be installed in a network.`nIs this the only OCC-Connector?"
+        $result = $Host.UI.PromptForChoice($caption,$message,$choices,2)
+
+        switch ($result) {
+            0 { Write-Host "Great, let's continue."}
+            1 { 
+                Write-Host "Then we better stop here. Use the switch '-Deploy SensorhubOnly' instead."
+                exit 1
+              }
+            2 { 
+                Write-Host "Then we better stop here. Please make sure this is the only OCC-Connector."
+                exit 1
+              }
+        }
+    }
+
 
     Write-Output "Working "
 
@@ -320,9 +344,16 @@ If (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 }
 
 If ([environment]::OSVersion.Version.Major -lt 6) {
-    Write-Output ""
-    Write-Warning "Your operating system is not officially supported.`nThe install will most likely work but we can no longer provide support for Server-Eye on this system."
-    Write-Output ""
+    Write-Host ""
+    Write-Host "Your operating system is not officially supported.`nThe install will most likely work but we can no longer provide support for Server-Eye on this system." 
+
+    $yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes, continue without support","The install will continue, but we cannot help you if something doesn't work."
+    $no = New-Object System.Management.Automation.Host.ChoiceDescription "&No, cancel the install","End the install right now."
+    $choices = [System.Management.Automation.Host.ChoiceDescription[]]($yes,$no)
+    $caption = ""
+    $message = "Do you still want to install Server-Eye on this computer?"
+    $result = $Host.UI.PromptForChoice($caption,$message,$choices,1)
+    if($result -eq 1) { exit 1 }
 }
 
 checkForUpdate
