@@ -2,6 +2,8 @@
 Installs Server-Eye from the command line.
 This is a Powershell script. Powershell in version 3 or higher is recommended.
 
+Instructions on how to install the current Powershell can be found here: https://technet.microsoft.com/library/Hh847837.aspx
+
 ## Introduction
 This script will help to install Server-Eye on systems without a full UI or when a full interactive setup is not needed.
 Right now this script can download the current version of the client, install the client, setup an OCC-Connector and setup a Sensorhub.
@@ -9,16 +11,8 @@ Right now this script can download the current version of the client, install th
 ## Download
 It is recommended to use the official download for production use. The official version is also signed with a valid codesigning certificate.
 
-There are two version please make sure to pick the correct one.
-
-Customers in the European Union please use:
 ```PowerShell
-Invoke-WebRequest "https://occ.server-eye.de/download/se.silent/Deploy-ServerEye.ps1" -OutFile Deploy-ServerEye.ps1
-```
-
-Customers in the US and Canada please use:
-```PowerShell
-Invoke-WebRequest "https://occ.server-eye.com/download/se-usa.silent/Deploy-ServerEye.ps1" -OutFile Deploy-ServerEye.ps1
+Invoke-WebRequest "https://occ.server-eye.de/download/se/Deploy-ServerEye.ps1" -OutFile Deploy-ServerEye.ps1
 ```
 
 ## Usage

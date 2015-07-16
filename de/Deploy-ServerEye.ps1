@@ -59,13 +59,15 @@ param(
 
 )
 
-$version = 371
+$version = 375
 $occServer = "occ.server-eye.de"
 $apiServer = "api.server-eye.de"
 $configServer = "config.server-eye.de"
 $pushServer = "push.server-eye.de"
 $queueServer = "queue.server-eye.de"
-$baseDownloadUrl = "https://$occServer/download/se.silent"
+$baseDownloadUrl = "https://$occServer/download"
+$cloudIdentifier = "se"
+$vendor = "Vendor.ServerEye"
 
 function is64bit() {
   return ([IntPtr]::Size -eq 8)
@@ -86,7 +88,7 @@ function printHeader() {
     Write-Host " \__ \/ -_) '_\ V / -_) '_|___| _| || / -_)" -ForegroundColor DarkYellow
     Write-Host " |___/\___|_|  \_/\___|_|     |___\_, \___|" -ForegroundColor DarkYellow
     Write-Host "                                  |__/     " -ForegroundColor DarkYellow
-    Write-Host "                            Version 3.5.371`n" -ForegroundColor DarkGray
+    Write-Host "                            Version 3.5.375`n" -ForegroundColor DarkGray
     Write-Host "Welcome to the (mostly) silent Server-Eye installer`n"
 }
 
@@ -152,9 +154,10 @@ function main() {
     if ($Deploy -eq "All") {
         createOccConnectorConfig
         sleep 5
+        createSensorHubConfig
     }
 
-    if ($Deploy -eq "SensorhubOnly" -or $Deploy -eq "All") {
+    if ($Deploy -eq "SensorhubOnly") {
         createSensorHubConfig
     }
 
@@ -165,11 +168,11 @@ function main() {
 
 function doDownload() {
     Write-Host "  downloading ServerEye.Vendor... " -NoNewline
-    DownloadFile "$baseDownloadUrl/Vendor.msi" "$wd\Vendor.msi"
+    DownloadFile "$baseDownloadUrl/vendor/$vendor/Vendor.msi" "$wd\Vendor.msi"
     Write-Host "done" -ForegroundColor Green
 
     Write-Host "  downloading ServerEye.Core... " -NoNewline
-    DownloadFile "$baseDownloadUrl/ServerEye.msi" "$wd\ServerEye.msi"
+    DownloadFile "$baseDownloadUrl/$version/ServerEye.msi" "$wd\ServerEye.msi"
     Write-Host "done" -ForegroundColor Green
 
 }
@@ -323,7 +326,7 @@ function DownloadFile($url, $targetFile) {
 }
 
 function checkForUpdate() {
-    $r = [System.Net.WebRequest]::Create("$baseDownloadUrl/currentVersion")
+    $r = [System.Net.WebRequest]::Create("$baseDownloadUrl/$cloudIdentifier/currentVersionCli")
     $resp = $r.GetResponse()
     $reqstream = $resp.GetResponseStream()
     $sr = new-object System.IO.StreamReader $reqstream
@@ -331,7 +334,7 @@ function checkForUpdate() {
     if ($version -lt $result) {
         Write-Host "This version of the Server-Eye deployment script is no longer supported."
         Write-Host "Please update to the newest version with this command:"
-        Write-Host "Invoke-WebRequest ""$baseDownloadUrl/Deploy-ServerEye.ps1"" -OutFile Deploy-ServerEye.ps1"
+        Write-Host "Invoke-WebRequest ""$baseDownloadUrl/$cloudIdentifier/Deploy-ServerEye.ps1"" -OutFile Deploy-ServerEye.ps1"
         exit 1
     }
 }
