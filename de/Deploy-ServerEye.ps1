@@ -13,6 +13,9 @@ Downloads the newest .msi files for Server-Eye.
 .PARAMETER Install
 Installs Server-Eye using the .msi files in the current directory.
 
+.PARAMETER Offline
+Skips all online checks. Use this only if the computer does not have an Internet connection.
+
 .EXAMPLE
 ./Deploy-ServerEye.ps1 -Download
 This just downloads the current version of the client setup.
@@ -33,8 +36,6 @@ This will download the current version of ServerEye and install it on this compu
 This will also set up a Sensorhub on this computer for the given customer.
 The parameters Customer, Secret and ParentGuid are required for this.
 
-
-
 .NOTES
 Creating customers with this is not yet supported.
 
@@ -49,6 +50,7 @@ https://github.com/Server-Eye/se-installer-cli
 param(
     [switch] $Install,
     [switch] $Download,
+    [switch] $Offline, 
     [Parameter(ParameterSetName='DeployData', Mandatory=$true)] [ValidateSet("All", "SensorHubOnly")] [string] $Deploy,
     [Parameter(ParameterSetName='DeployData', Mandatory=$true)] [string] $Customer,
     [Parameter(ParameterSetName='DeployData', Mandatory=$true)] [string] $Secret,
@@ -56,10 +58,9 @@ param(
     [Parameter(ParameterSetName='DeployData', Mandatory=$false)] [string] $ParentGuid,
     [Parameter(ParameterSetName='DeployData', Mandatory=$false)] [string] $HubPort ="11010",
     [Parameter(ParameterSetName='DeployData', Mandatory=$false)] [string] $ConnectorPort="11002"
-
 )
 
-$version = 375
+$version = 380
 $occServer = "occ.server-eye.de"
 $apiServer = "api.server-eye.de"
 $configServer = "config.server-eye.de"
@@ -88,7 +89,7 @@ function printHeader() {
     Write-Host " \__ \/ -_) '_\ V / -_) '_|___| _| || / -_)" -ForegroundColor DarkYellow
     Write-Host " |___/\___|_|  \_/\___|_|     |___\_, \___|" -ForegroundColor DarkYellow
     Write-Host "                                  |__/     " -ForegroundColor DarkYellow
-    Write-Host "                            Version 3.5.375`n" -ForegroundColor DarkGray
+    Write-Host "                            Version 3.5.380`n" -ForegroundColor DarkGray
     Write-Host "Welcome to the (mostly) silent Server-Eye installer`n"
 }
 
@@ -97,10 +98,10 @@ function printHelp() {
     $me = ".\Deploy-ServerEye.ps1"
     printHeader
 
-    write-host "This script needs at least one parameter.`n" -ForegroundColor red
+    write-host "This script needs at least one of the following parameters.`n" -ForegroundColor red
 
     Write-Host "$me -Download"
-    Write-Host "Downloads the current version od Server-Eye.`n"
+    Write-Host "Downloads the current version of Server-Eye.`n"
 
     Write-Host "$me -Install"
     Write-Host "Installs Server-Eye on this computer using the .msi files in this folder.`n"
@@ -201,34 +202,24 @@ function install() {
 
 function createOccConnectorConfig() {
     Write-Host "  creating OCC-Connector configuration... " -NoNewline
-    $progdir =  get-programfilesdir
-    $confDir = "$progdir\Server-Eye\config"
-    $confFile = "$confDir\se3_mac.conf"
 
-    if((Test-Path "$progdir\Server-Eye\config\se3_mac.conf") -or (Test-Path "$progdir\Server-Eye\config\se3_cc.conf")) {
-        Write-Host "Server-Eye is already installed on this system." -ForegroundColor Red
-        Write-Host "This script works only on system without a previous Server-Eye installation" -ForegroundColor Red
-        exit 1
-    }
+    "customer=$Customer" | Set-Content $confFileMAC
+    "secretKey=$Secret" | Add-Content $confFileMAC
+    "name=$NodeName" | Add-Content $confFileMAC
+    "description=" | Add-Content $confFileMAC
+    "port=$ConnectorPort" | Add-Content $confFileMAC
 
+    "servletUrl=https://$configServer/" | Add-Content $confFileMAC
+    "statUrl=https://$pushServer/0.1/" | Add-Content $confFileMAC
+    "pushUrl=https://$pushServer/" | Add-Content $confFileMAC
+    "queueUrl=https://$queueServer/" | Add-Content $confFileMAC
 
-    "customer=$Customer" | Set-Content $confFile
-    "secretKey=$Secret" | Add-Content $confFile
-    "name=$NodeName" | Add-Content $confFile
-    "description=" | Add-Content $confFile
-    "port=$ConnectorPort" | Add-Content $confFile
-
-    "servletUrl=https://$configServer/" | Add-Content $confFile
-    "statUrl=https://$pushServer/0.1/" | Add-Content $confFile
-    "pushUrl=https://$pushServer/" | Add-Content $confFile
-    "queueUrl=https://$queueServer/" | Add-Content $confFile
-
-    "proxyType=EdS2vHJFGTNVHy4Uq570OQ==|===" | Add-Content $confFile
-    "proxyUrl=L8aGFOF4VKZiWLRQEb72lA==|===" | Add-Content $confFile
-    "proxyPort=lo/VY9yIpiJ46BYKnAtljQ==|===" | Add-Content $confFile
-    "proxyDomain=lo/VY9yIpiJ46BYKnAtljQ==|===" | Add-Content $confFile
-    "proxyUser=lo/VY9yIpiJ46BYKnAtljQ==|===" | Add-Content $confFile
-    "proxyPass=lo/VY9yIpiJ46BYKnAtljQ==|===" | Add-Content $confFile
+    "proxyType=EdS2vHJFGTNVHy4Uq570OQ==|===" | Add-Content $confFileMAC
+    "proxyUrl=L8aGFOF4VKZiWLRQEb72lA==|===" | Add-Content $confFileMAC
+    "proxyPort=lo/VY9yIpiJ46BYKnAtljQ==|===" | Add-Content $confFileMAC
+    "proxyDomain=lo/VY9yIpiJ46BYKnAtljQ==|===" | Add-Content $confFileMAC
+    "proxyUser=lo/VY9yIpiJ46BYKnAtljQ==|===" | Add-Content $confFileMAC
+    "proxyPass=lo/VY9yIpiJ46BYKnAtljQ==|===" | Add-Content $confFileMAC
 
     Write-Host "done" -ForegroundColor Green
 
@@ -245,7 +236,7 @@ function createOccConnectorConfig() {
     $maxWait = 300
     $wait = 0
     while ($guid -eq "" -and $wait -lt $maxWait ) {
-        $x = Get-Content $confFile | Select-String "guid"
+        $x = Get-Content $confFileMAC | Select-String "guid"
         #$x = $x.Trim();
         if ($x.Line.Length -gt 1) {
             $splitX = $x.Line.ToString().Split("=")
@@ -266,23 +257,14 @@ function createOccConnectorConfig() {
 
 function createSensorHubConfig() {
     Write-Host "  creating Sensorhub configuration... " -NoNewline
-    $progdir =  get-programfilesdir
-    $confDir = "$progdir\Server-Eye\config"
-    $confFile = "$confDir\se3_cc.conf"
 
-    if((Test-Path "$progdir\Server-Eye\config\se3_cc.conf")) {
-        Write-Host "Server-Eye is already installed on this system." -ForegroundColor Red
-        Write-Host "This script works only on system without a previous Server-Eye installation" -ForegroundColor Red
-        exit 1
-    }
-
-    "customer=$Customer" | Set-Content $confFile
-    "secretKey=$Secret" | Add-Content $confFile
-    "name=$NodeName" | Add-Content $confFile
-    "description=" | Add-Content $confFile
-    "port=$HubPort" | Add-Content $confFile
+    "customer=$Customer" | Set-Content $confFileCC
+    "secretKey=$Secret" | Add-Content $confFileCC
+    "name=$NodeName" | Add-Content $confFileCC
+    "description=" | Add-Content $confFileCC
+    "port=$HubPort" | Add-Content $confFileCC
     if($ParentGuid -ne "") {
-        "parentGuid=$ParentGuid" | Add-Content $confFile
+        "parentGuid=$ParentGuid" | Add-Content $confFileCC
     }
 
     Write-Host "done" -ForegroundColor Green
@@ -292,9 +274,9 @@ function createSensorHubConfig() {
     Set-Service CCService -StartupType Automatic
     Start-Service CCService
 
+    Start-Service SE3Recovery
+
     Write-Host "done" -ForegroundColor Green
-
-
 }
 
 function DownloadFile($url, $targetFile) {
@@ -342,7 +324,7 @@ function checkForUpdate() {
 If (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(`
     [Security.Principal.WindowsBuiltInRole] "Administrator"))
 {
-    Write-Warning "You do not have Administrator rights to run this script!`nPlease re-run this script as an Administrator!"
+    Write-Warning "You do not have Administrator rights to run this script!`nPlease re-run this script as an Administrator!`n"
     exit 1
 }
 
@@ -359,7 +341,27 @@ If ([environment]::OSVersion.Version.Major -lt 6) {
     if($result -eq 1) { exit 1 }
 }
 
-checkForUpdate
+if ($Offline.IsPresent -eq $false) { 
+    checkForUpdate
+}
+
+if ($Offline -and $Download) {
+    Write-Warning "Cannot use offline mode and download at the same time."
+    exit 1
+}
+
+
+$progdir =  get-programfilesdir
+$confDir = "$progdir\Server-Eye\config"
+$confFileMAC = "$confDir\se3_mac.conf"
+$confFileCC = "$confDir\se3_cc.conf"
+
+if($Deploy -ne "" -and (Test-Path "$confFileMAC") -or (Test-Path "$confFileCC")) {
+    Write-Host "Server-Eye is already installed on this system." -ForegroundColor Red
+    Write-Host "This script works only on system without a previous Server-Eye installation" -ForegroundColor Red
+    exit 1
+}
+
 
 $wd = split-path $MyInvocation.MyCommand.Path
 
