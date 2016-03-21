@@ -50,7 +50,7 @@ https://github.com/Server-Eye/se-installer-cli
 param(
     [switch] $Install,
     [switch] $Download,
-    [switch] $Offline, 
+    [switch] $Offline,
     [Parameter(ParameterSetName='DeployData', Mandatory=$true)] [ValidateSet("All", "SensorHubOnly")] [string] $Deploy,
     [Parameter(ParameterSetName='DeployData', Mandatory=$true)] [string] $Customer,
     [Parameter(ParameterSetName='DeployData', Mandatory=$true)] [string] $Secret,
@@ -60,7 +60,7 @@ param(
     [Parameter(ParameterSetName='DeployData', Mandatory=$false)] [string] $ConnectorPort="11002"
 )
 
-$version = 380
+$version = 395
 $occServer = "occ.server-eye.de"
 $apiServer = "api.server-eye.de"
 $configServer = "config.server-eye.de"
@@ -89,7 +89,7 @@ function printHeader() {
     Write-Host " \__ \/ -_) '_\ V / -_) '_|___| _| || / -_)" -ForegroundColor DarkYellow
     Write-Host " |___/\___|_|  \_/\___|_|     |___\_, \___|" -ForegroundColor DarkYellow
     Write-Host "                                  |__/     " -ForegroundColor DarkYellow
-    Write-Host "                            Version 3.5.380`n" -ForegroundColor DarkGray
+    Write-Host "                            Version 3.5.395`n" -ForegroundColor DarkGray
     Write-Host "Welcome to the (mostly) silent Server-Eye installer`n"
 }
 
@@ -130,11 +130,11 @@ function main() {
 
         switch ($result) {
             0 { Write-Host "Great, let's continue."}
-            1 { 
+            1 {
                 Write-Host "Then we better stop here. Use the switch '-Deploy SensorhubOnly' instead."
                 exit 1
               }
-            2 { 
+            2 {
                 Write-Host "Then we better stop here. Please make sure this is the only OCC-Connector."
                 exit 1
               }
@@ -330,7 +330,7 @@ If (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 
 If ([environment]::OSVersion.Version.Major -lt 6) {
     Write-Host ""
-    Write-Host "Your operating system is not officially supported.`nThe install will most likely work but we can no longer provide support for Server-Eye on this system." 
+    Write-Host "Your operating system is not officially supported.`nThe install will most likely work but we can no longer provide support for Server-Eye on this system."
 
     $yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes, continue without support","The install will continue, but we cannot help you if something doesn't work."
     $no = New-Object System.Management.Automation.Host.ChoiceDescription "&No, cancel the install","End the install right now."
@@ -341,7 +341,7 @@ If ([environment]::OSVersion.Version.Major -lt 6) {
     if($result -eq 1) { exit 1 }
 }
 
-if ($Offline.IsPresent -eq $false) { 
+if ($Offline.IsPresent -eq $false) {
     checkForUpdate
 }
 
