@@ -27,7 +27,11 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Deploy-ServerEye_unsigned.ps1" />
+    <Folder Include="de\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="de\Deploy-ServerEye.ps1" />
+    <Compile Include="de\Deploy-ServerEye_unsigned.ps1" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <Target Name="Build" />
