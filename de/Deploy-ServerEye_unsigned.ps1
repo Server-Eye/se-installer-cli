@@ -99,7 +99,7 @@ param (
 )
 
 #region Preconfigure some static settings
-# Note: Changes in the infrastructure may require reconfiguring these and breakscripts deploayed without these changes
+# Note: Changes in the infrastructure may require reconfiguring these and break scripts deployed without these changes
 $SE_version = 402
 $SE_occServer = "occ.server-eye.de"
 $SE_apiServer = "api.server-eye.de"
