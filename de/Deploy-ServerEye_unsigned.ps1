@@ -49,6 +49,15 @@
 		The folder runtime files (especially downloaded installer files) are stored in.
 		By default, the folder the script is in is used. Since this location is not always reliable and sometimes other rules (e.g. Software Restriction Policy) must be honored, this can be configured.
 		If the path is not present, the script will try to create it. If this fails, the script will terminate.
+
+	.PARAMETER ApplyTemplate
+		Applies a template after the deploy stage.
+
+	.PARAMETER TemplateId
+		The GUID of the template you want to apply to the SensorHub.
+
+	.PARAMETER ApiKey
+		Operations such as 'ApplyTemplate' require an API key. 
 	
 	.EXAMPLE
 		PS C:\> .\Deploy-ServerEye.ps1 -Download
@@ -81,6 +90,8 @@
 		https://github.com/Server-Eye/se-installer-cli
 #>
 
+#Requires –Version 3
+
 [CmdletBinding(DefaultParameterSetName = 'None')]
 param (
 	[switch] $Install,
@@ -93,14 +104,28 @@ param (
 	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)] [string] $ParentGuid,
 	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)] [string] $HubPort = "11010",
 	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)] [string] $ConnectorPort = "11002",
+
+	[Parameter(ParameterSetName = 'ApplyTemplate', Mandatory = $true)]
+	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)]
+	[string] $TemplateId,
+	[Parameter(ParameterSetName = 'ApplyTemplate', Mandatory = $true)]
+	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)]
+	[switch] $ApplyTemplate,
+	
+	[Parameter(ParameterSetName = 'ApplyTemplate', Mandatory = $true)]
+	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)]
+	[string] $ApiKey,
+	
 	[switch] $Silent,
 	[switch] $SilentOCCConfirmed,
-	[string] $DeployPath = ($MyInvocation.MyCommand.Path)
+	[string] $DeployPath,
+	[switch] $SkipInstalledCheck,
+	[string] $LogFile
 )
 
 #region Preconfigure some static settings
 # Note: Changes in the infrastructure may require reconfiguring these and break scripts deployed without these changes
-$SE_version = 402
+$SE_version = 403
 $SE_occServer = "occ.server-eye.de"
 $SE_apiServer = "api.server-eye.de"
 $SE_configServer = "config.server-eye.de"
@@ -109,6 +134,11 @@ $SE_queueServer = "queue.server-eye.de"
 $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
 $SE_vendor = "Vendor.ServerEye"
+
+if ($DeployPath -eq "") {
+	$DeployPath = $PSScriptRoot
+}
+
 
 # Create OCC Configuration Object
 $OCCConfig = New-Object System.Management.Automation.PSObject -Property @{
@@ -136,7 +166,12 @@ $HubConfig = New-Object System.Management.Automation.PSObject -Property @{
 $script:_SilentOverride = $Silent.ToBool()
 
 # Set the logfile path
-$script:_LogFilePath = $env:TEMP + "\ServerEyeInstall.log"
+if ($LogFile -eq "" ) {
+	$script:_LogFilePath = $env:TEMP + "\ServerEyeInstall.log"
+} else {
+	$script:_LogFilePath = $LogFile
+}
+
 #endregion Preconfigure some static settings
 
 #region Register Eventlog Source
@@ -451,12 +486,77 @@ function Start-ServerEyeInstallation
 		New-SESensorHubConfig -HubConfig $HubConfig
 		Write-Log "Server-Eye Sensorhub Configuration finished" -EventID 15
 	}
+
+	if ($ApplyTemplate) {
+		Write-Log "Applying a template to the SensorHub" -EventID 101
+		$guid = Get-SensorHubId
+		Apply-Template -guid $guid -apiKey $ApiKey -templateId $TemplateId
+	
+	}
 	
 	Write-Host "Finished!" -ForegroundColor Green
 	
 	Write-Host "`nPlease visit https://$OCCServer to add Sensors`nHave fun!"
 	Write-Log "Installation successfully finished!" -EventID 1 -Silent $true
 	Stop-Execution -Number 0
+}
+
+function Apply-Template {
+	[CmdletBinding()]
+	Param (
+		[string]$guid,
+		[string]$apiKey,
+		[string]$templateId
+	)
+	$url = "https://api.server-eye.de/2/container/$guid/template/$templateId"
+	#$url = "https://api.server-eye.de/2/me"
+	$headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+	$headers.Add("x-api-key", $apiKey)
+	
+	try {
+		$response = Invoke-RestMethod -Method Post -Uri $url -Headers $headers
+	} catch {
+		$result = $_.Exception.Response.GetResponseStream()
+		$reader = New-Object System.IO.StreamReader($result)
+		$reader.BaseStream.Position = 0
+		$reader.DiscardBufferedData()
+		$resBody = $reader.ReadToEnd();
+		$resBody = ConvertFrom-Json -InputObject $resBody
+
+		Write-Log "Could not apply template. Error message: $($resBody.message) " -EventID 105 -ForegroundColor Red
+		Stop-Execution -Number 1
+	}
+
+	Write-Log "Template applied" -EventID 106
+}
+
+function Get-SensorHubId {
+	[CmdletBinding()]
+	Param (
+	)
+
+	$pattern =  '\bguid=\b'
+
+	$i = 180
+	Write-Log "Waiting for SensorHub GUID (max wait $i seconds)" -EventID 102 -Silent $Silent
+
+	while ((-not($guidFound = Select-String -Quiet -LiteralPath $confFileCC -Pattern $pattern )) -and ($i -gt 0)) {
+		Start-Sleep -Seconds 1
+		$i--
+	}
+
+	if ($guidFound) {
+		$guid = Get-Content $confFileCC | Select-String -Pattern $pattern 
+		$guid = $guid -replace "guid=", ''
+		Write-Log "Found SensorHub with GUID $guid"-EventID 103 -Silent $Silent
+		
+	} else {
+		Write-Log "Could not get GUID" -ForegroundColor Red -EventID 104 -Silent $Silent
+		Stop-Execution -Number 1
+	}
+
+
+    $guid
 }
 
 function Download-SEInstallationFiles
@@ -649,35 +749,15 @@ function Download-SEFile
 	
 	try
 	{
-		$uri = New-Object "System.Uri" "$url"
-		$request = [System.Net.HttpWebRequest]::Create($uri)
-		$request.set_Timeout(15000) #15 second timeout
-		$response = $request.GetResponse()
-		$totalLength = [System.Math]::Floor($response.get_ContentLength()/1024)
-		$responseStream = $response.GetResponseStream()
-		$targetStream = New-Object -TypeName System.IO.FileStream -ArgumentList $targetFile, Create
-		$buffer = new-object byte[] 10KB
-		$count = $responseStream.Read($buffer, 0, $buffer.length)
-		$downloadedBytes = $count
+		Invoke-WebRequest -Uri $url -OutFile $TargetFile
+
+
 		
-		while ($count -gt 0)
-		{
-			$targetStream.Write($buffer, 0, $count)
-			$count = $responseStream.Read($buffer, 0, $buffer.length)
-			$downloadedBytes = $downloadedBytes + $count
-			Write-Progress -activity "Downloading file '$($url.split('/') | Select-Object -Last 1)'" -status "Downloaded ($([System.Math]::Floor($downloadedBytes/1024))K of $($totalLength)K): " -PercentComplete ((([System.Math]::Floor($downloadedBytes/1024)) / $totalLength) * 100)
-		}
-		
-		Write-Progress -activity "Finished downloading file '$($url.split('/') | Select-Object -Last 1)'" -Status "Done" -Completed
-		
-		$targetStream.Flush()
-		$targetStream.Close()
-		$targetStream.Dispose()
-		$responseStream.Dispose()
 	}
 	catch
 	{
-		Write-Log -Message "Error downloading: $Url - Interrupting execution" -EventID 666 -EntryType Error
+		
+		Write-Log -Message "Error downloading: $Url - Interrupting execution - $($_.Exception.Message)" -EventID 666 -EntryType Error
 		Stop-Execution
 	}
 }
@@ -699,7 +779,7 @@ if ($Offline -and $Download)
 	Stop-Execution
 }
 
-if ((-not $Install) -and (-not $Download) -and (-not $PSBoundParameters.ContainsKey('Deploy')))
+if ((-not $Install) -and (-not $Download) -and (-not $ApplyTemplate) -and (-not $PSBoundParameters.ContainsKey('Deploy')))
 {
 	# Give guidance
 	if (-not $_SilentOverride) { Write-SEDeployHelp }
@@ -749,8 +829,11 @@ $confFileMAC = "$confDir\se3_mac.conf"
 $OCCConfig.ConfFileMAC = $confFileMAC
 $confFileCC = "$confDir\se3_cc.conf"
 $HubConfig.ConfFileCC = $confFileCC
+$seDataDir = $env:ProgramData
+$seDataDir = "$seDataDir\Server-Eye3"
 
-if ($PSBoundParameters.ContainsKey('Deploy') -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC)))
+
+if ((-not $SkipInstalledCheck) -and (((-not $Install) -or $PSBoundParameters.ContainsKey('Deploy')) -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir))))
 {
 	Write-Log -Message "Server-Eye is already installed on this system. This script works only on system without a previous Server-Eye installation" -EventID 666 -EntryType Error -ForegroundColor Red
 	Stop-Execution
@@ -762,7 +845,7 @@ if (-not $Offline)
 {
 	try
 	{
-		Write-Log -Message "Checking for new script verion"
+		Write-Log -Message "Checking for new script version"
 		$r = [System.Net.WebRequest]::Create("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersionCli")
 		$resp = $r.GetResponse()
 		$reqstream = $resp.GetResponseStream()
@@ -814,3 +897,5 @@ else
 
 # Finally launch into the main execution
 Start-ServerEyeInstallation -Deploy $Deploy -Download $Download -Install $Install -OCCServer $SE_occServer -BaseDownloadUrl $SE_baseDownloadUrl -Vendor $SE_vendor -Version $SE_version -Path $DeployPath -OCCConfig $OCCConfig -HubConfig $HubConfig
+
+

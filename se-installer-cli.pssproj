@@ -8,6 +8,17 @@
     <RootNamespace>MyApplication</RootNamespace>
     <AssemblyName>MyApplication</AssemblyName>
     <Name>se-installer-cli</Name>
+    <ClrVersion />
+    <PowerShellHostVersion />
+    <PowerShellVersion />
+    <ProcessorArchitecture />
+    <RequiredModules />
+    <Author>Andreas Behr</Author>
+    <CompanyName>Server-Eye</CompanyName>
+    <Copyright />
+    <Description />
+    <Guid>06c92994-022b-4ee0-a7a5-5136b0ae8490</Guid>
+    <DebugArguments>-download</DebugArguments>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
