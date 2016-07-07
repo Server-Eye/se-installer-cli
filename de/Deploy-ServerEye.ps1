@@ -10,10 +10,11 @@
 		Installs Server-Eye using the .msi files in the current directory.
 	
 	.PARAMETER Download
-		Downloads the newest .msi files for Server-Eye.
+		Downloads the .msi files for Server-Eye matching the version number of the script.
 	
 	.PARAMETER Offline
 		Skips all online checks. Use this only if the computer does not have an Internet connection.
+		This should really only be used if all else fails. 
 	
 	.PARAMETER Deploy
 		Assigns the connector to a specific customer.
@@ -47,7 +48,7 @@
 
 	.PARAMETER DeployPath
 		The folder runtime files (especially downloaded installer files) are stored in.
-		By default, the folder the script is in is used. Since this location is not always reliable and sometimes other rules (e.g. Software Restriction Policy) must be honored, this can be configured.
+		By default, the folder the script was called from. Since this location is not always reliable and sometimes other rules (e.g. Software Restriction Policy) must be honored, this can be configured.
 		If the path is not present, the script will try to create it. If this fails, the script will terminate.
 
 	.PARAMETER ApplyTemplate
@@ -58,6 +59,12 @@
 
 	.PARAMETER ApiKey
 		Operations such as 'ApplyTemplate' require an API key. 
+
+	.PARAMETER LogFile
+		Path including filename. Logs messages also to that file.
+
+	.PARAMETER InstallDotNet
+		Insures that .Net Framework 3.5 is installed.
 	
 	.EXAMPLE
 		PS C:\> .\Deploy-ServerEye.ps1 -Download
@@ -90,37 +97,30 @@
 		https://github.com/Server-Eye/se-installer-cli
 #>
 
-#Requires –Version 3
+#Requires –Version 2
 
 [CmdletBinding(DefaultParameterSetName = 'None')]
 param (
 	[switch] $Install,
 	[switch] $Download,
 	[switch] $Offline,
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $true)]	[ValidateSet("All", "SensorHubOnly")] [string] $Deploy,
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $true)] [string] $Customer,
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $true)] [string] $Secret,
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)] [string] $NodeName,
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)] [string] $ParentGuid,
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)] [string] $HubPort = "11010",
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)] [string] $ConnectorPort = "11002",
-
-	[Parameter(ParameterSetName = 'ApplyTemplate', Mandatory = $true)]
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)]
+	[ValidateSet("All", "SensorHubOnly")] [string] $Deploy,
+	[string] $Customer,
+	[string] $Secret,
+	[string] $NodeName,
+	[string] $ParentGuid,
+	[string] $HubPort = "11010",
+	[string] $ConnectorPort = "11002",
 	[string] $TemplateId,
-	[Parameter(ParameterSetName = 'ApplyTemplate', Mandatory = $true)]
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)]
 	[switch] $ApplyTemplate,
-	
-	[Parameter(ParameterSetName = 'ApplyTemplate', Mandatory = $true)]
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)]
 	[string] $ApiKey,
 	
 	[switch] $Silent,
 	[switch] $SilentOCCConfirmed,
 	[string] $DeployPath,
 	[switch] $SkipInstalledCheck,
-	[string] $LogFile
+	[string] $LogFile,
+	[switch] $InstallDotNet
 )
 
 #region Preconfigure some static settings
@@ -136,9 +136,8 @@ $SE_cloudIdentifier = "se"
 $SE_vendor = "Vendor.ServerEye"
 
 if ($DeployPath -eq "") {
-	$DeployPath = $PSScriptRoot
+	$DeployPath = (Resolve-Path .\).Path
 }
-
 
 # Create OCC Configuration Object
 $OCCConfig = New-Object System.Management.Automation.PSObject -Property @{
@@ -454,6 +453,11 @@ function Start-ServerEyeInstallation
 	#endregion Really install OCC Connector?
 	
 	Write-Log "Starting installation process"
+
+	if ($InstallDotNet) {
+		Write-Log "Installing .Net 3.5" -EventID 201
+		& DISM /Online /Enable-Feature /FeatureName:NetFx3 /All 
+	}
 	
 	if ($Download)
 	{
@@ -514,16 +518,19 @@ function Apply-Template {
 	$headers.Add("x-api-key", $apiKey)
 	
 	try {
-		$response = Invoke-RestMethod -Method Post -Uri $url -Headers $headers
-	} catch {
-		$result = $_.Exception.Response.GetResponseStream()
-		$reader = New-Object System.IO.StreamReader($result)
-		$reader.BaseStream.Position = 0
-		$reader.DiscardBufferedData()
-		$resBody = $reader.ReadToEnd();
-		$resBody = ConvertFrom-Json -InputObject $resBody
+		$WebRequest = [System.Net.WebRequest]::Create($url)
+		$WebRequest.Method = "POST"
+		$WebRequest.Headers.Add("x-api-key", $apiKey)
+		$WebRequest.ContentType = "application/json"
+		$Response = $WebRequest.GetResponse()
+		$ResponseStream = $Response.GetResponseStream()
+		$ReadStream = New-Object System.IO.StreamReader $ResponseStream
+		$Data=$ReadStream.ReadToEnd()
 
-		Write-Log "Could not apply template. Error message: $($resBody.message) " -EventID 105 -ForegroundColor Red
+	} catch {
+		#$result = $_.Exception.Response.GetResponseStream()
+
+		Write-Log "Could not apply template. Error message: $($_.Exception) " -EventID 105 -ForegroundColor Red
 		Stop-Execution -Number 1
 	}
 
@@ -540,7 +547,7 @@ function Get-SensorHubId {
 	$i = 180
 	Write-Log "Waiting for SensorHub GUID (max wait $i seconds)" -EventID 102 -Silent $Silent
 
-	while ((-not($guidFound = Select-String -Quiet -LiteralPath $confFileCC -Pattern $pattern )) -and ($i -gt 0)) {
+	while ((-not($guidFound = Select-String -Quiet -Path $confFileCC -Pattern $pattern )) -and ($i -gt 0)) {
 		Start-Sleep -Seconds 1
 		$i--
 	}
@@ -749,9 +756,30 @@ function Download-SEFile
 	
 	try
 	{
-		Invoke-WebRequest -Uri $url -OutFile $TargetFile
+	   $uri = New-Object "System.Uri" "$url"
+	   $request = [System.Net.HttpWebRequest]::Create($uri)
+	   $request.set_Timeout(15000) #15 second timeout
+	   $response = $request.GetResponse()
+	   $totalLength = [System.Math]::Floor($response.get_ContentLength()/1024)
+	   $responseStream = $response.GetResponseStream()
+	   $targetStream = New-Object -TypeName System.IO.FileStream -ArgumentList $targetFile, Create
+	   $buffer = new-object byte[] 10KB
+	   $count = $responseStream.Read($buffer,0,$buffer.length)
+	   $downloadedBytes = $count
 
+	   while ($count -gt 0) {
+		   $targetStream.Write($buffer, 0, $count)
+		   $count = $responseStream.Read($buffer,0,$buffer.length)
+		   $downloadedBytes = $downloadedBytes + $count
+		   Write-Progress -activity "Downloading file '$($url.split('/') | Select -Last 1)'" -status "Downloaded ($([System.Math]::Floor($downloadedBytes/1024))K of $($totalLength)K): " -PercentComplete ((([System.Math]::Floor($downloadedBytes/1024)) / $totalLength)  * 100)
+	   }
 
+	   Write-Progress -activity "Finished downloading file '$($url.split('/') | Select -Last 1)'" -Status "Done" -Completed
+
+	   $targetStream.Flush()
+	   $targetStream.Close()
+	   $targetStream.Dispose()
+	   $responseStream.Dispose()
 		
 	}
 	catch
@@ -903,8 +931,8 @@ Start-ServerEyeInstallation -Deploy $Deploy -Download $Download -Install $Instal
 # SIG # Begin signature block
 # MIIazgYJKoZIhvcNAQcCoIIavzCCGrsCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUY02J784cQqW3bqXPYo8+BQ55
-# m4GgghW+MIIEmTCCA4GgAwIBAgIPFojwOSVeY45pFDkH5jMLMA0GCSqGSIb3DQEB
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUnbL5/p+L6Hoklq3gMuuDjHgw
+# 3gGgghW+MIIEmTCCA4GgAwIBAgIPFojwOSVeY45pFDkH5jMLMA0GCSqGSIb3DQEB
 # BQUAMIGVMQswCQYDVQQGEwJVUzELMAkGA1UECBMCVVQxFzAVBgNVBAcTDlNhbHQg
 # TGFrZSBDaXR5MR4wHAYDVQQKExVUaGUgVVNFUlRSVVNUIE5ldHdvcmsxITAfBgNV
 # BAsTGGh0dHA6Ly93d3cudXNlcnRydXN0LmNvbTEdMBsGA1UEAxMUVVROLVVTRVJG
@@ -1025,24 +1053,24 @@ Start-ServerEyeInstallation -Deploy $Deploy -Download $Download -Install $Instal
 # TyBDQSBMaW1pdGVkMSMwIQYDVQQDExpDT01PRE8gUlNBIENvZGUgU2lnbmluZyBD
 # QQIQJvWnpIeSdTQQjAgkMP4J8DAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUHirGE0LxcwhlSVvF
-# pellnwbG6swwDQYJKoZIhvcNAQEBBQAEggEAK80CvlqSW2h7csSW1EyD2QHqROgP
-# lD3lkr5XL4A+THGBAkHpRdR5s3iGfM3HP+E7l15+3Wd7dG9l/m4Ai8WQHlKyb+DI
-# sni0PA/9oDGQsYOq3SFXJ+HLyIvdbvAjZvTD/l6hHr4mwVnoVE+0hN+0JT2Y23LJ
-# 312CqvEbTqr0oA5P1BmViIauafDSJpz2W3XlgpoHxnK2QP3J6ggQ/M7pwhEb/QfV
-# a9kXwwZkGZjq8/n8jegQADDEiUMJUAnnY9bsHDA7UO7s7K0aeHx7JKj4Kl/RJFXz
-# Ai7xuJ8/isp53evD5f0ECgg+JeJyh1Y6tVdiROKNGPcoE5kv+hI22ILWGqGCAkMw
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUDHxbz779DYrKFFRh
+# 6MHc67CSbFswDQYJKoZIhvcNAQEBBQAEggEAqkKaNKruQXT8UuTvpNWIVdFZ17Cu
+# DoVRVSFmTZd/F3kxbYvciBoqN6FeN4fOMWXrmIAMwCrP1missTAdEZf0G9Z5rwkF
+# A8iTzCKFVMN0Zw3w0jSXhZ01y8V7VHqVisIh5L2Y6T5NS53astSrqbposJyP/pC4
+# WBj8gBQ8OuAoOTWtN+DqM4Bp/LgDx7G5zl7vVkoD+xnYNykPvtg8F5Pb+0oiL/63
+# aY4uafdpRjzo2WlpbcuGk9RkSMK7OtjPr9uXXzigbmEGzsAxCmtZ/zw843M4DSHd
+# c5DuAuV7j7fh7WOkaAAGk09W059peptNxnI4JRJTS5VFMw92dt0BoUorgKGCAkMw
 # ggI/BgkqhkiG9w0BCQYxggIwMIICLAIBADCBqTCBlTELMAkGA1UEBhMCVVMxCzAJ
 # BgNVBAgTAlVUMRcwFQYDVQQHEw5TYWx0IExha2UgQ2l0eTEeMBwGA1UEChMVVGhl
 # IFVTRVJUUlVTVCBOZXR3b3JrMSEwHwYDVQQLExhodHRwOi8vd3d3LnVzZXJ0cnVz
 # dC5jb20xHTAbBgNVBAMTFFVUTi1VU0VSRmlyc3QtT2JqZWN0Ag8WiPA5JV5jjmkU
 # OQfmMwswCQYFKw4DAhoFAKBdMBgGCSqGSIb3DQEJAzELBgkqhkiG9w0BBwEwHAYJ
-# KoZIhvcNAQkFMQ8XDTE2MDcwNzEyMDgwMFowIwYJKoZIhvcNAQkEMRYEFOCskuVt
-# YGHCcuMVoKHa77d69N9DMA0GCSqGSIb3DQEBAQUABIIBALuET42tu7Gi/zc/llPd
-# na4iK9ZUhg4SRF02tgRgDAskTIfcZDUzDpTXVkrmIQ2qCJxD1FH63zOJqxMyCVt7
-# opWk/WTFBQjJRaNj7nePPsiy1XixHxNnWXqS4ipUaxV4hsjMwitC2tdD7dUz8hEX
-# PIYVsIejUAKaJOi2lXn8y4oOj4eQaeq/DN+Vz9zu3JSYriQA8XJorMCiwNZ72cqp
-# AYLxbiSA8UfgNUqtYedPAb8BWh8KKrw5jNQCubFvEDlFFW1NP+wFuN1Xh11cdNBR
-# GeNTccMFcHiAaH+wd4gRJ2BFqfJmFVKzdqsAal0nwPSC8EvEFGPrXOn32RxL2ZX4
-# g7w=
+# KoZIhvcNAQkFMQ8XDTE2MDcwNzE0NDcwMVowIwYJKoZIhvcNAQkEMRYEFP8IP2Jn
+# Xck+d7PXP0gsn1x+efJlMA0GCSqGSIb3DQEBAQUABIIBABFU7bioxMJroqI00EZN
+# QAGfoGaHYwSXpQUbQ/WK5NlbeZKjy6oP63FzQP9QveasqlSWNKQOfSlnrKqGu3h+
+# x3pQ//AQi8Vagnr391v2+yNRqrvc65Oihk3I5QmDcjwN/9AvZG8DMHIB8651E3sZ
+# aEy8eIvFB35/WFgHsVJ1u4FkP12KAlEhM8PVvCUKIwYj50FA9X4uazvwfJldSKu3
+# xRr/Nlg5Ece9gKQINfn6HXN7W25nKEI26g3Fs5t+ZY2AyQt8dkcCK8sK12tPLmnX
+# NY1iOfRM3zdeSofWaXI2wk27R9jER/ifF0y6ZnO6bI1SKYvTmBXPFi8x65FXCcpF
+# mGk=
 # SIG # End signature block

@@ -10,10 +10,11 @@
 		Installs Server-Eye using the .msi files in the current directory.
 	
 	.PARAMETER Download
-		Downloads the newest .msi files for Server-Eye.
+		Downloads the .msi files for Server-Eye matching the version number of the script.
 	
 	.PARAMETER Offline
 		Skips all online checks. Use this only if the computer does not have an Internet connection.
+		This should really only be used if all else fails. 
 	
 	.PARAMETER Deploy
 		Assigns the connector to a specific customer.
@@ -47,7 +48,7 @@
 
 	.PARAMETER DeployPath
 		The folder runtime files (especially downloaded installer files) are stored in.
-		By default, the folder the script is in is used. Since this location is not always reliable and sometimes other rules (e.g. Software Restriction Policy) must be honored, this can be configured.
+		By default, the folder the script was called from. Since this location is not always reliable and sometimes other rules (e.g. Software Restriction Policy) must be honored, this can be configured.
 		If the path is not present, the script will try to create it. If this fails, the script will terminate.
 
 	.PARAMETER ApplyTemplate
@@ -58,6 +59,12 @@
 
 	.PARAMETER ApiKey
 		Operations such as 'ApplyTemplate' require an API key. 
+
+	.PARAMETER LogFile
+		Path including filename. Logs messages also to that file.
+
+	.PARAMETER InstallDotNet
+		Insures that .Net Framework 3.5 is installed.
 	
 	.EXAMPLE
 		PS C:\> .\Deploy-ServerEye.ps1 -Download
@@ -90,37 +97,30 @@
 		https://github.com/Server-Eye/se-installer-cli
 #>
 
-#Requires –Version 3
+#Requires –Version 2
 
 [CmdletBinding(DefaultParameterSetName = 'None')]
 param (
 	[switch] $Install,
 	[switch] $Download,
 	[switch] $Offline,
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $true)]	[ValidateSet("All", "SensorHubOnly")] [string] $Deploy,
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $true)] [string] $Customer,
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $true)] [string] $Secret,
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)] [string] $NodeName,
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)] [string] $ParentGuid,
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)] [string] $HubPort = "11010",
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)] [string] $ConnectorPort = "11002",
-
-	[Parameter(ParameterSetName = 'ApplyTemplate', Mandatory = $true)]
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)]
+	[ValidateSet("All", "SensorHubOnly")] [string] $Deploy,
+	[string] $Customer,
+	[string] $Secret,
+	[string] $NodeName,
+	[string] $ParentGuid,
+	[string] $HubPort = "11010",
+	[string] $ConnectorPort = "11002",
 	[string] $TemplateId,
-	[Parameter(ParameterSetName = 'ApplyTemplate', Mandatory = $true)]
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)]
 	[switch] $ApplyTemplate,
-	
-	[Parameter(ParameterSetName = 'ApplyTemplate', Mandatory = $true)]
-	[Parameter(ParameterSetName = 'DeployData', Mandatory = $false)]
 	[string] $ApiKey,
 	
 	[switch] $Silent,
 	[switch] $SilentOCCConfirmed,
 	[string] $DeployPath,
 	[switch] $SkipInstalledCheck,
-	[string] $LogFile
+	[string] $LogFile,
+	[switch] $InstallDotNet
 )
 
 #region Preconfigure some static settings
@@ -136,9 +136,8 @@ $SE_cloudIdentifier = "se"
 $SE_vendor = "Vendor.ServerEye"
 
 if ($DeployPath -eq "") {
-	$DeployPath = $PSScriptRoot
+	$DeployPath = (Resolve-Path .\).Path
 }
-
 
 # Create OCC Configuration Object
 $OCCConfig = New-Object System.Management.Automation.PSObject -Property @{
@@ -454,6 +453,11 @@ function Start-ServerEyeInstallation
 	#endregion Really install OCC Connector?
 	
 	Write-Log "Starting installation process"
+
+	if ($InstallDotNet) {
+		Write-Log "Installing .Net 3.5" -EventID 201
+		& DISM /Online /Enable-Feature /FeatureName:NetFx3 /All 
+	}
 	
 	if ($Download)
 	{
@@ -514,16 +518,19 @@ function Apply-Template {
 	$headers.Add("x-api-key", $apiKey)
 	
 	try {
-		$response = Invoke-RestMethod -Method Post -Uri $url -Headers $headers
-	} catch {
-		$result = $_.Exception.Response.GetResponseStream()
-		$reader = New-Object System.IO.StreamReader($result)
-		$reader.BaseStream.Position = 0
-		$reader.DiscardBufferedData()
-		$resBody = $reader.ReadToEnd();
-		$resBody = ConvertFrom-Json -InputObject $resBody
+		$WebRequest = [System.Net.WebRequest]::Create($url)
+		$WebRequest.Method = "POST"
+		$WebRequest.Headers.Add("x-api-key", $apiKey)
+		$WebRequest.ContentType = "application/json"
+		$Response = $WebRequest.GetResponse()
+		$ResponseStream = $Response.GetResponseStream()
+		$ReadStream = New-Object System.IO.StreamReader $ResponseStream
+		$Data=$ReadStream.ReadToEnd()
 
-		Write-Log "Could not apply template. Error message: $($resBody.message) " -EventID 105 -ForegroundColor Red
+	} catch {
+		#$result = $_.Exception.Response.GetResponseStream()
+
+		Write-Log "Could not apply template. Error message: $($_.Exception) " -EventID 105 -ForegroundColor Red
 		Stop-Execution -Number 1
 	}
 
@@ -540,7 +547,7 @@ function Get-SensorHubId {
 	$i = 180
 	Write-Log "Waiting for SensorHub GUID (max wait $i seconds)" -EventID 102 -Silent $Silent
 
-	while ((-not($guidFound = Select-String -Quiet -LiteralPath $confFileCC -Pattern $pattern )) -and ($i -gt 0)) {
+	while ((-not($guidFound = Select-String -Quiet -Path $confFileCC -Pattern $pattern )) -and ($i -gt 0)) {
 		Start-Sleep -Seconds 1
 		$i--
 	}
@@ -749,9 +756,30 @@ function Download-SEFile
 	
 	try
 	{
-		Invoke-WebRequest -Uri $url -OutFile $TargetFile
+	   $uri = New-Object "System.Uri" "$url"
+	   $request = [System.Net.HttpWebRequest]::Create($uri)
+	   $request.set_Timeout(15000) #15 second timeout
+	   $response = $request.GetResponse()
+	   $totalLength = [System.Math]::Floor($response.get_ContentLength()/1024)
+	   $responseStream = $response.GetResponseStream()
+	   $targetStream = New-Object -TypeName System.IO.FileStream -ArgumentList $targetFile, Create
+	   $buffer = new-object byte[] 10KB
+	   $count = $responseStream.Read($buffer,0,$buffer.length)
+	   $downloadedBytes = $count
 
+	   while ($count -gt 0) {
+		   $targetStream.Write($buffer, 0, $count)
+		   $count = $responseStream.Read($buffer,0,$buffer.length)
+		   $downloadedBytes = $downloadedBytes + $count
+		   Write-Progress -activity "Downloading file '$($url.split('/') | Select -Last 1)'" -status "Downloaded ($([System.Math]::Floor($downloadedBytes/1024))K of $($totalLength)K): " -PercentComplete ((([System.Math]::Floor($downloadedBytes/1024)) / $totalLength)  * 100)
+	   }
 
+	   Write-Progress -activity "Finished downloading file '$($url.split('/') | Select -Last 1)'" -Status "Done" -Completed
+
+	   $targetStream.Flush()
+	   $targetStream.Close()
+	   $targetStream.Dispose()
+	   $responseStream.Dispose()
 		
 	}
 	catch

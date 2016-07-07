@@ -6,10 +6,12 @@ Instructions on how to install the current Powershell can be found here: https:/
 
 ## Introduction
 This script will help to install Server-Eye on systems without a full UI or when a full interactive setup is not needed.
-Right now this script can download the current version of the client, install the client, setup an OCC-Connector and setup a Sensorhub.
+This script can download the current version of the client, install the client, setup an OCC-Connector and setup a Sensorhub.
+
+This script can also be used to apply a predefined template to the freshly installed Sensorhub.
 
 ## Download
-It is recommended to use the official download for production use. The official version is also signed with a valid codesigning certificate.
+It is recommended to use the official download for production use. The official version is also signed with a valid code-signing certificate.
 
 ```PowerShell
 Invoke-WebRequest "https://occ.server-eye.de/download/se/Deploy-ServerEye.ps1" -OutFile Deploy-ServerEye.ps1
@@ -39,8 +41,19 @@ This will download the current version of ServerEye and install it on this compu
 This will also set up an OCC-Connector and a Sensorhub on this computer for the given customer.
 The parameters Customer and Secret are required for this.
 
+### Apply template
+```PowerShell
+.\Deploy-ServerEye.ps1 -ApplyTemplate -ApiKey <ApiKey> -TemplateId <TemplateId>
+```
+This will apply the template with the given ID to the freshly installed Sensorhub.
+
 ### Everything
 ```PowerShell
-.\Deploy-ServerEye.ps1 -Download -Install -Deploy [All|SensorhubOnly] -Customer <CustomerID> -Secret <SecretKey> [-ParentGuid <OccConnectorId]
+.\Deploy-ServerEye.ps1 -Download -Install -Deploy [All|SensorhubOnly] -Customer <CustomerID> -Secret <SecretKey> [-ParentGuid <OccConnectorId] [-ApplyTemplate -ApiKey <ApiKey> -TemplateId <TemplateId>]
 ```
 Does all of the above. Downloads, installs and sets up Server-Eye.
+
+
+
+
+

@@ -41,8 +41,11 @@
     <Folder Include="de\" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AUTHORS" />
     <Compile Include="de\Deploy-ServerEye.ps1" />
     <Compile Include="de\Deploy-ServerEye_unsigned.ps1" />
+    <Compile Include="LICENSE" />
+    <Compile Include="README.md" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <Target Name="Build" />
