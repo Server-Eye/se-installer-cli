@@ -125,7 +125,7 @@ param (
 
 #region Preconfigure some static settings
 # Note: Changes in the infrastructure may require reconfiguring these and break scripts deployed without these changes
-$SE_version = 403
+$SE_version = 404
 $SE_occServer = "occ.server-eye.de"
 $SE_apiServer = "api.server-eye.de"
 $SE_configServer = "config.server-eye.de"
@@ -583,12 +583,17 @@ function Download-SEInstallationFiles
 		$Path
 	)
 	
+	Write-Log "  getting current Server-Eye version... " -NoNewLine
+	$wc=new-object system.net.webclient
+	$curVersion = $wc.DownloadString("$BaseDownloadUrl/$SE_cloudIdentifier/currentVersion")
+	Write-Log "done" -ForegroundColor Green
+
 	Write-Log "  downloading ServerEye.Vendor... " -NoNewline
 	Download-SEFile "$BaseDownloadUrl/vendor/$Vendor/Vendor.msi" "$Path\Vendor.msi"
 	Write-Log "done" -ForegroundColor Green
 	
 	Write-Log "  downloading ServerEye.Core... " -NoNewline
-	Download-SEFile "$BaseDownloadUrl/$Version/ServerEye.msi" "$Path\ServerEye.msi"
+	Download-SEFile "$BaseDownloadUrl/$curVersion/ServerEye.msi" "$Path\ServerEye.msi"
 	Write-Log "done" -ForegroundColor Green
 	
 }
@@ -858,12 +863,12 @@ $OCCConfig.ConfFileMAC = $confFileMAC
 $confFileCC = "$confDir\se3_cc.conf"
 $HubConfig.ConfFileCC = $confFileCC
 $seDataDir = $env:ProgramData
-$seDataDir = "$seDataDir\Server-Eye3"
+$seDataDir = "$seDataDir\ServerEye3"
 
 
-if ((-not $SkipInstalledCheck) -and (((-not $Install) -or $PSBoundParameters.ContainsKey('Deploy')) -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir))))
+if ((-not $SkipInstalledCheck) -and (($Install -or $PSBoundParameters.ContainsKey('Deploy')) -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir))))
 {
-	Write-Log -Message "Server-Eye is already installed on this system. This script works only on system without a previous Server-Eye installation" -EventID 666 -EntryType Error -ForegroundColor Red
+	Write-Log -Message "Server-Eye is or was installed on this system. This script works only on system without a previous Server-Eye installation" -EventID 666 -EntryType Error -ForegroundColor Red
 	Stop-Execution
 }
 #endregion validate already installed
@@ -874,11 +879,8 @@ if (-not $Offline)
 	try
 	{
 		Write-Log -Message "Checking for new script version"
-		$r = [System.Net.WebRequest]::Create("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersionCli")
-		$resp = $r.GetResponse()
-		$reqstream = $resp.GetResponseStream()
-		$sr = new-object System.IO.StreamReader $reqstream
-		$result = $sr.ReadToEnd()
+		$wc=new-object system.net.webclient
+		$result = $wc.DownloadString("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersionCli")
 		if ($SE_version -lt $result)
 		{
 			Write-Log -Message @"
