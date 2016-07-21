@@ -125,7 +125,7 @@ param (
 
 #region Preconfigure some static settings
 # Note: Changes in the infrastructure may require reconfiguring these and break scripts deployed without these changes
-$SE_version = 403
+$SE_version = 404
 $SE_occServer = "occ.server-eye.de"
 $SE_apiServer = "api.server-eye.de"
 $SE_configServer = "config.server-eye.de"
@@ -583,12 +583,17 @@ function Download-SEInstallationFiles
 		$Path
 	)
 	
+	Write-Log "  getting current Server-Eye version... " -NoNewLine
+	$wc=new-object system.net.webclient
+	$curVersion = $wc.DownloadString("$BaseDownloadUrl/$SE_cloudIdentifier/currentVersion")
+	Write-Log "done" -ForegroundColor Green
+
 	Write-Log "  downloading ServerEye.Vendor... " -NoNewline
 	Download-SEFile "$BaseDownloadUrl/vendor/$Vendor/Vendor.msi" "$Path\Vendor.msi"
 	Write-Log "done" -ForegroundColor Green
 	
 	Write-Log "  downloading ServerEye.Core... " -NoNewline
-	Download-SEFile "$BaseDownloadUrl/$Version/ServerEye.msi" "$Path\ServerEye.msi"
+	Download-SEFile "$BaseDownloadUrl/$curVersion/ServerEye.msi" "$Path\ServerEye.msi"
 	Write-Log "done" -ForegroundColor Green
 	
 }
@@ -858,12 +863,12 @@ $OCCConfig.ConfFileMAC = $confFileMAC
 $confFileCC = "$confDir\se3_cc.conf"
 $HubConfig.ConfFileCC = $confFileCC
 $seDataDir = $env:ProgramData
-$seDataDir = "$seDataDir\Server-Eye3"
+$seDataDir = "$seDataDir\ServerEye3"
 
 
-if ((-not $SkipInstalledCheck) -and (((-not $Install) -or $PSBoundParameters.ContainsKey('Deploy')) -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir))))
+if ((-not $SkipInstalledCheck) -and (($Install -or $PSBoundParameters.ContainsKey('Deploy')) -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir))))
 {
-	Write-Log -Message "Server-Eye is already installed on this system. This script works only on system without a previous Server-Eye installation" -EventID 666 -EntryType Error -ForegroundColor Red
+	Write-Log -Message "Server-Eye is or was installed on this system. This script works only on system without a previous Server-Eye installation" -EventID 666 -EntryType Error -ForegroundColor Red
 	Stop-Execution
 }
 #endregion validate already installed
@@ -874,11 +879,8 @@ if (-not $Offline)
 	try
 	{
 		Write-Log -Message "Checking for new script version"
-		$r = [System.Net.WebRequest]::Create("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersionCli")
-		$resp = $r.GetResponse()
-		$reqstream = $resp.GetResponseStream()
-		$sr = new-object System.IO.StreamReader $reqstream
-		$result = $sr.ReadToEnd()
+		$wc=new-object system.net.webclient
+		$result = $wc.DownloadString("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersionCli")
 		if ($SE_version -lt $result)
 		{
 			Write-Log -Message @"
@@ -931,8 +933,8 @@ Start-ServerEyeInstallation -Deploy $Deploy -Download $Download -Install $Instal
 # SIG # Begin signature block
 # MIIazgYJKoZIhvcNAQcCoIIavzCCGrsCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUnbL5/p+L6Hoklq3gMuuDjHgw
-# 3gGgghW+MIIEmTCCA4GgAwIBAgIPFojwOSVeY45pFDkH5jMLMA0GCSqGSIb3DQEB
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQU+raqiSLCcE96uNEczUxaCOL3
+# hNOgghW+MIIEmTCCA4GgAwIBAgIPFojwOSVeY45pFDkH5jMLMA0GCSqGSIb3DQEB
 # BQUAMIGVMQswCQYDVQQGEwJVUzELMAkGA1UECBMCVVQxFzAVBgNVBAcTDlNhbHQg
 # TGFrZSBDaXR5MR4wHAYDVQQKExVUaGUgVVNFUlRSVVNUIE5ldHdvcmsxITAfBgNV
 # BAsTGGh0dHA6Ly93d3cudXNlcnRydXN0LmNvbTEdMBsGA1UEAxMUVVROLVVTRVJG
@@ -1053,24 +1055,24 @@ Start-ServerEyeInstallation -Deploy $Deploy -Download $Download -Install $Instal
 # TyBDQSBMaW1pdGVkMSMwIQYDVQQDExpDT01PRE8gUlNBIENvZGUgU2lnbmluZyBD
 # QQIQJvWnpIeSdTQQjAgkMP4J8DAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUDHxbz779DYrKFFRh
-# 6MHc67CSbFswDQYJKoZIhvcNAQEBBQAEggEAqkKaNKruQXT8UuTvpNWIVdFZ17Cu
-# DoVRVSFmTZd/F3kxbYvciBoqN6FeN4fOMWXrmIAMwCrP1missTAdEZf0G9Z5rwkF
-# A8iTzCKFVMN0Zw3w0jSXhZ01y8V7VHqVisIh5L2Y6T5NS53astSrqbposJyP/pC4
-# WBj8gBQ8OuAoOTWtN+DqM4Bp/LgDx7G5zl7vVkoD+xnYNykPvtg8F5Pb+0oiL/63
-# aY4uafdpRjzo2WlpbcuGk9RkSMK7OtjPr9uXXzigbmEGzsAxCmtZ/zw843M4DSHd
-# c5DuAuV7j7fh7WOkaAAGk09W059peptNxnI4JRJTS5VFMw92dt0BoUorgKGCAkMw
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUGmJDhC4rZdBRVZyU
+# Ib1x/opwfoowDQYJKoZIhvcNAQEBBQAEggEAKQCTVpRuvasHNJoXbKb0KZSBPqnQ
+# P6C4kEOH2cdgDyygFsOHjLJ82ZMfaJyvpD0z93hZHVKyIJ9Whd8j1ZNnUCTtLB6k
+# Y+jCN1PJzo2kN+9Rm+zbCUOywpPfmEVzfbpNk3dnNZw0kdm7TVVOIj86fPLjt1Z0
+# +qAhGhoYp+rymHIYaXWwY4SqYyj5/0nfvBqFNsssSAkeuXeJYgi2PStYN1ap0ki3
+# MGSGTZXPCkEu+6dSOK602vo7T2WjKHeOOjhgL61h80W4BwPpXBFd+gsEn3yXDrHP
+# 0f9cPt0E9SL4npz4u0q/EVpwUK0JiEhjT+wm550TTiYHO+tWlulIcm/MNKGCAkMw
 # ggI/BgkqhkiG9w0BCQYxggIwMIICLAIBADCBqTCBlTELMAkGA1UEBhMCVVMxCzAJ
 # BgNVBAgTAlVUMRcwFQYDVQQHEw5TYWx0IExha2UgQ2l0eTEeMBwGA1UEChMVVGhl
 # IFVTRVJUUlVTVCBOZXR3b3JrMSEwHwYDVQQLExhodHRwOi8vd3d3LnVzZXJ0cnVz
 # dC5jb20xHTAbBgNVBAMTFFVUTi1VU0VSRmlyc3QtT2JqZWN0Ag8WiPA5JV5jjmkU
 # OQfmMwswCQYFKw4DAhoFAKBdMBgGCSqGSIb3DQEJAzELBgkqhkiG9w0BBwEwHAYJ
-# KoZIhvcNAQkFMQ8XDTE2MDcyMTA5MzQxOFowIwYJKoZIhvcNAQkEMRYEFP8IP2Jn
-# Xck+d7PXP0gsn1x+efJlMA0GCSqGSIb3DQEBAQUABIIBAMKDFX/6D+ljT8iWYQ+4
-# vB2fTNzM8cesmHcEReOA3/rbrbu95Mv5KJ09jTjZ9vcx7gjxBLHTFFnrC/qx1Ih+
-# ld94scWZEliZmTDjBmL2MgZV9b0TZNTpKUA/SOdQ7xS4tSCi35LYbSByH7663xKJ
-# Ujoa/zDzi6UktXJNQtMpYnSvouWBLyz5n+F1ShV7XVYGqmj5RyLmFmiZqPrCQTnQ
-# yVC/ROGlB7pnbhX5MJkZwtTHL3ahfeMpjpAp2bZ+JcRO2pGLP+ggWsq5p6U5jcAR
-# n9Oh7C3z1y5UjueyfKGiXh4Z8U3dcQ1heaZNF01+bHODe9BQJz6zOHZxkFFiSfkn
-# slc=
+# KoZIhvcNAQkFMQ8XDTE2MDcyMTExNTc0NFowIwYJKoZIhvcNAQkEMRYEFIrVAzs4
+# lRhcCLrn6yIlScwu3fTkMA0GCSqGSIb3DQEBAQUABIIBAG+oAJin+rnK0ShSEudS
+# 9kCGZEmlQTWFh1XwX3FR/nai6qIFhbwYzt5kh4nvMsKQR4nrtMNWcMTmoDNK2J2C
+# aedUZhUqZW7LwOicrIveHO1ltuz8P1kI+KBLSuIU3Fj1oV8RB+98OmFvwGATqARw
+# 9+vFNx6Cr2qePYB0QBUQU7X6wKl1t53TmWDV9TeqmnqvSdTWPQr53hB8A7cduIaH
+# Qj8WXGM8TaZkn2RBv6BPERp5W5xotUImVD5XH3+I7Pe9NQvtyrzv3KA2NvQ8Y3Ct
+# kSydl32KeGMrGFBEI2jw2YXQYZgKWKfMr26R2R8X+ZUbA2oQ3h4UYnuAm8Ub/U9D
+# XVU=
 # SIG # End signature block
