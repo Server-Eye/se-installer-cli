@@ -65,6 +65,9 @@
 
 	.PARAMETER InstallDotNet
 		Insures that .Net Framework 3.5 is installed.
+
+	.PARAMETER NoExit
+		Using this, the script is no longer terminated with "exit", allowing it to be used as part of a greater script.
 	
 	.EXAMPLE
 		PS C:\> .\Deploy-ServerEye.ps1 -Download
@@ -101,26 +104,66 @@
 
 [CmdletBinding(DefaultParameterSetName = 'None')]
 param (
-	[switch] $Install,
-	[switch] $Download,
-	[switch] $Offline,
-	[ValidateSet("All", "SensorHubOnly")] [string] $Deploy,
-	[string] $Customer,
-	[string] $Secret,
-	[string] $NodeName,
-	[string] $ParentGuid,
-	[string] $HubPort = "11010",
-	[string] $ConnectorPort = "11002",
-	[string] $TemplateId,
-	[switch] $ApplyTemplate,
-	[string] $ApiKey,
+	[switch]
+	$Install,
 	
-	[switch] $Silent,
-	[switch] $SilentOCCConfirmed,
-	[string] $DeployPath,
-	[switch] $SkipInstalledCheck,
-	[string] $LogFile,
-	[switch] $InstallDotNet
+	[switch]
+	$Download,
+	
+	[switch]
+	$Offline,
+	
+	[ValidateSet("All", "SensorHubOnly")]
+	[string]
+	$Deploy,
+	
+	[string]
+	$Customer,
+	
+	[string]
+	$Secret,
+	
+	[string]
+	$NodeName,
+	
+	[string]
+	$ParentGuid,
+	
+	[string]
+	$HubPort = "11010",
+	
+	[string]
+	$ConnectorPort = "11002",
+	
+	[string]
+	$TemplateId,
+	
+	[switch]
+	$ApplyTemplate,
+	
+	[string]
+	$ApiKey,
+	
+	[switch]
+	$Silent,
+	
+	[switch]
+	$SilentOCCConfirmed,
+	
+	[string]
+	$DeployPath,
+	
+	[switch]
+	$SkipInstalledCheck,
+	
+	[string]
+	$LogFile,
+	
+	[switch]
+	$InstallDotNet,
+	
+	[switch]
+	$NoExit
 )
 
 #region Preconfigure some static settings
@@ -135,7 +178,8 @@ $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
 $SE_vendor = "Vendor.ServerEye"
 
-if ($DeployPath -eq "") {
+if ($DeployPath -eq "")
+{
 	$DeployPath = (Resolve-Path .\).Path
 }
 
@@ -161,13 +205,26 @@ $HubConfig = New-Object System.Management.Automation.PSObject -Property @{
 	ParentGuid = $ParentGuid
 }
 
+# Create Template Configuration Object
+$TemplateConfig = New-Object System.Management.Automation.PSObject -Property @{
+	ApplyTemplate = $ApplyTemplate.ToBool()
+	TemplateID = $TemplateId
+	ApiKey = $ApiKey
+}
+
 # Set the global verbosity level
 $script:_SilentOverride = $Silent.ToBool()
 
+# Set global exit preference
+$script:_NoExit = $NoExit.ToBool()
+
 # Set the logfile path
-if ($LogFile -eq "" ) {
+if ($LogFile -eq "")
+{
 	$script:_LogFilePath = $env:TEMP + "\ServerEyeInstall.log"
-} else {
+}
+else
+{
 	$script:_LogFilePath = $LogFile
 }
 
@@ -179,18 +236,20 @@ catch { }
 #endregion Register Eventlog Source
 
 #region Utility Functions
-function Test-64Bit {
+function Test-64Bit
+{
 	[CmdletBinding()]
 	Param (
-	
+		
 	)
 	return ([IntPtr]::Size -eq 8)
 }
 
-function Get-ProgramFilesDirectory {
+function Get-ProgramFilesDirectory
+{
 	[CmdletBinding()]
 	Param (
-	
+		
 	)
 	
 	if ((Test-64Bit) -eq $true)
@@ -203,10 +262,11 @@ function Get-ProgramFilesDirectory {
 	}
 }
 
-function Write-Header {
+function Write-Header
+{
 	[CmdletBinding()]
 	Param (
-	
+		
 	)
 	
 	# Suppress all text-output in silent mode
@@ -224,10 +284,11 @@ function Write-Header {
 	Write-Host "Welcome to the (mostly) silent Server-Eye installer`n"
 }
 
-function Write-SEDeployHelp {
+function Write-SEDeployHelp
+{
 	[CmdletBinding()]
 	Param (
-	
+		
 	)
 	
 	# Suppress all text-output in silent mode
@@ -236,23 +297,24 @@ function Write-SEDeployHelp {
 	$me = ".\Deploy-ServerEye.ps1"
 	Write-Header
 	
-    Write-host "This script needs at least one of the following parameters.`n" -ForegroundColor red
-
-    Write-Host "$me -Download"
-    Write-Host "Downloads the current version of Server-Eye.`n"
-
-    Write-Host "$me -Install"
-    Write-Host "Installs Server-Eye on this computer using the .msi files in this folder.`n"
-
-    Write-Host "$me -Deploy [All|SensorHubOnly] -Customer XXXX -Secret YYYY"
-    Write-Host "Sets up Server-Eye on this computer using the given customer and secret key.`n"
-
-    Write-Host "$me -Download -Install -Deploy [All|SensorHubOnly] -Customer XXXX -Secret YYYY"
-    Write-Host "Does all of the above.`n"
-
+	Write-host "This script needs at least one of the following parameters.`n" -ForegroundColor red
+	
+	Write-Host "$me -Download"
+	Write-Host "Downloads the current version of Server-Eye.`n"
+	
+	Write-Host "$me -Install"
+	Write-Host "Installs Server-Eye on this computer using the .msi files in this folder.`n"
+	
+	Write-Host "$me -Deploy [All|SensorHubOnly] -Customer XXXX -Secret YYYY"
+	Write-Host "Sets up Server-Eye on this computer using the given customer and secret key.`n"
+	
+	Write-Host "$me -Download -Install -Deploy [All|SensorHubOnly] -Customer XXXX -Secret YYYY"
+	Write-Host "Does all of the above.`n"
+	
 }
 
-function Write-Log {
+function Write-Log
+{
 	<#
 		.SYNOPSIS
 			A swift logging function.
@@ -371,10 +433,13 @@ function Stop-Execution
 {
 	[CmdletBinding()]
 	Param (
-	    [Parameter(Position = 1)] [int]	$Number = 1
+		[Parameter(Position = 1)]
+		[int]
+		$Number = 1
 	)
 	
-	exit $Number
+	if ($script:_NoExit) { break main }
+	else { exit $Number }
 }
 #endregion Utility Functions
 
@@ -411,8 +476,13 @@ function Start-ServerEyeInstallation
 		$Path,
 		
 		$OCCConfig,
-	
-		$HubConfig
+		
+		$HubConfig,
+		
+		$TemplateConfig,
+		
+		[bool]
+		$InstallDotNet
 	)
 	
 	if (-not $Silent) { Write-Header }
@@ -453,10 +523,11 @@ function Start-ServerEyeInstallation
 	#endregion Really install OCC Connector?
 	
 	Write-Log "Starting installation process"
-
-	if ($InstallDotNet) {
+	
+	if ($InstallDotNet)
+	{
 		Write-Log "Installing .Net 3.5" -EventID 201
-		& DISM /Online /Enable-Feature /FeatureName:NetFx3 /All 
+		& DISM /Online /Enable-Feature /FeatureName:NetFx3 /All
 	}
 	
 	if ($Download)
@@ -490,12 +561,13 @@ function Start-ServerEyeInstallation
 		New-SESensorHubConfig -HubConfig $HubConfig
 		Write-Log "Server-Eye Sensorhub Configuration finished" -EventID 15
 	}
-
-	if ($ApplyTemplate) {
-		Write-Log "Applying a template to the SensorHub" -EventID 101
-		$guid = Get-SensorHubId
-		Apply-Template -guid $guid -apiKey $ApiKey -templateId $TemplateId
 	
+	if ($TemplateConfig.ApplyTemplate)
+	{
+		Write-Log "Starting to apply template to the SensorHub" -EventID 16
+		$guid = Get-SensorHubId -ConfigFileCC $HubConfig.ConfFileCC
+		Apply-Template -Guid $guid -ApiKey $TemplateConfig.ApiKey -templateId $TemplateConfig.TemplateId
+		Write-Log "Finished to apply template to the SensorHub" -EventID 17
 	}
 	
 	Write-Host "Finished!" -ForegroundColor Green
@@ -505,19 +577,26 @@ function Start-ServerEyeInstallation
 	Stop-Execution -Number 0
 }
 
-function Apply-Template {
+function Apply-Template
+{
 	[CmdletBinding()]
 	Param (
-		[string]$guid,
-		[string]$apiKey,
-		[string]$templateId
+		[string]
+		$Guid,
+		
+		[string]
+		$ApiKey,
+		
+		[string]
+		$TemplateId
 	)
 	$url = "https://api.server-eye.de/2/container/$guid/template/$templateId"
 	#$url = "https://api.server-eye.de/2/me"
 	$headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
 	$headers.Add("x-api-key", $apiKey)
 	
-	try {
+	try
+	{
 		$WebRequest = [System.Net.WebRequest]::Create($url)
 		$WebRequest.Method = "POST"
 		$WebRequest.Headers.Add("x-api-key", $apiKey)
@@ -525,45 +604,53 @@ function Apply-Template {
 		$Response = $WebRequest.GetResponse()
 		$ResponseStream = $Response.GetResponseStream()
 		$ReadStream = New-Object System.IO.StreamReader $ResponseStream
-		$Data=$ReadStream.ReadToEnd()
-
-	} catch {
+		$Data = $ReadStream.ReadToEnd()
+		
+	}
+	catch
+	{
 		#$result = $_.Exception.Response.GetResponseStream()
-
+		
 		Write-Log "Could not apply template. Error message: $($_.Exception) " -EventID 105 -ForegroundColor Red
 		Stop-Execution -Number 1
 	}
-
+	
 	Write-Log "Template applied" -EventID 106
 }
 
-function Get-SensorHubId {
+function Get-SensorHubId
+{
 	[CmdletBinding()]
 	Param (
+		$ConfigFileCC
 	)
-
-	$pattern =  '\bguid=\b'
-
+	
+	$pattern = '\bguid=\b'
+	
 	$i = 180
 	Write-Log "Waiting for SensorHub GUID (max wait $i seconds)" -EventID 102 -Silent $Silent
-
-	while ((-not($guidFound = Select-String -Quiet -Path $confFileCC -Pattern $pattern )) -and ($i -gt 0)) {
+	
+	while ((-not ($guidFound = Select-String -Quiet -Path $ConfigFileCC -Pattern $pattern)) -and ($i -gt 0))
+	{
 		Start-Sleep -Seconds 1
 		$i--
 	}
-
-	if ($guidFound) {
-		$guid = Get-Content $confFileCC | Select-String -Pattern $pattern 
+	
+	if ($guidFound)
+	{
+		$guid = Get-Content $ConfigFileCC | Select-String -Pattern $pattern
 		$guid = $guid -replace "guid=", ''
-		Write-Log "Found SensorHub with GUID $guid"-EventID 103 -Silent $Silent
+		Write-Log "Found SensorHub with GUID $guid" -EventID 103 -Silent $Silent
 		
-	} else {
+	}
+	else
+	{
 		Write-Log "Could not get GUID" -ForegroundColor Red -EventID 104 -Silent $Silent
 		Stop-Execution -Number 1
 	}
-
-
-    $guid
+	
+	
+	$guid
 }
 
 function Download-SEInstallationFiles
@@ -584,10 +671,10 @@ function Download-SEInstallationFiles
 	)
 	
 	Write-Log "  getting current Server-Eye version... " -NoNewLine
-	$wc=new-object system.net.webclient
+	$wc = new-object system.net.webclient
 	$curVersion = $wc.DownloadString("$BaseDownloadUrl/$SE_cloudIdentifier/currentVersion")
 	Write-Log "done" -ForegroundColor Green
-
+	
 	Write-Log "  downloading ServerEye.Vendor... " -NoNewline
 	Download-SEFile "$BaseDownloadUrl/vendor/$Vendor/Vendor.msi" "$Path\Vendor.msi"
 	Write-Log "done" -ForegroundColor Green
@@ -655,7 +742,6 @@ servletUrl=https://$($OCCConfig.ConfigServer)/
 statUrl=https://$($OCCConfig.PushServer)/0.1/
 pushUrl=https://$($OCCConfig.PushServer)/
 queueUrl=https://$($OCCConfig.QueueServer)/
-
 proxyType=EdS2vHJFGTNVHy4Uq570OQ==|===
 proxyUrl=L8aGFOF4VKZiWLRQEb72lA==|===
 proxyPort=lo/VY9yIpiJ46BYKnAtljQ==|===
@@ -679,7 +765,7 @@ proxyPass=lo/VY9yIpiJ46BYKnAtljQ==|===
 		$wait = 0
 		while (($guid -eq "") -and ($wait -lt $maxWait))
 		{
-			$x = Get-Content $confFileMAC | Select-String "guid"
+			$x = Get-Content $OCCConfig.ConfFileMAC | Select-String "guid"
 			if ($x.Line.Length -gt 1)
 			{
 				$splitX = $x.Line.ToString().Split("=")
@@ -727,7 +813,7 @@ port=$($HubConfig.HubPort)
 "@
 		if ($HubConfig.ParentGuid)
 		{
-			"parentGuid=$($HubConfig.ParentGuid)" | Add-Content $confFileCC -ErrorAction Stop
+			"parentGuid=$($HubConfig.ParentGuid)" | Add-Content $HubConfig.ConfFileCC  -ErrorAction Stop
 		}
 		
 		Write-Log "done" -ForegroundColor Green
@@ -761,30 +847,31 @@ function Download-SEFile
 	
 	try
 	{
-	   $uri = New-Object "System.Uri" "$url"
-	   $request = [System.Net.HttpWebRequest]::Create($uri)
-	   $request.set_Timeout(15000) #15 second timeout
-	   $response = $request.GetResponse()
-	   $totalLength = [System.Math]::Floor($response.get_ContentLength()/1024)
-	   $responseStream = $response.GetResponseStream()
-	   $targetStream = New-Object -TypeName System.IO.FileStream -ArgumentList $targetFile, Create
-	   $buffer = new-object byte[] 10KB
-	   $count = $responseStream.Read($buffer,0,$buffer.length)
-	   $downloadedBytes = $count
-
-	   while ($count -gt 0) {
-		   $targetStream.Write($buffer, 0, $count)
-		   $count = $responseStream.Read($buffer,0,$buffer.length)
-		   $downloadedBytes = $downloadedBytes + $count
-		   Write-Progress -activity "Downloading file '$($url.split('/') | Select -Last 1)'" -status "Downloaded ($([System.Math]::Floor($downloadedBytes/1024))K of $($totalLength)K): " -PercentComplete ((([System.Math]::Floor($downloadedBytes/1024)) / $totalLength)  * 100)
-	   }
-
-	   Write-Progress -activity "Finished downloading file '$($url.split('/') | Select -Last 1)'" -Status "Done" -Completed
-
-	   $targetStream.Flush()
-	   $targetStream.Close()
-	   $targetStream.Dispose()
-	   $responseStream.Dispose()
+		$uri = New-Object "System.Uri" "$url"
+		$request = [System.Net.HttpWebRequest]::Create($uri)
+		$request.set_Timeout(15000) #15 second timeout
+		$response = $request.GetResponse()
+		$totalLength = [System.Math]::Floor($response.get_ContentLength()/1024)
+		$responseStream = $response.GetResponseStream()
+		$targetStream = New-Object -TypeName System.IO.FileStream -ArgumentList $targetFile, Create
+		$buffer = new-object byte[] 10KB
+		$count = $responseStream.Read($buffer, 0, $buffer.length)
+		$downloadedBytes = $count
+		
+		while ($count -gt 0)
+		{
+			$targetStream.Write($buffer, 0, $count)
+			$count = $responseStream.Read($buffer, 0, $buffer.length)
+			$downloadedBytes = $downloadedBytes + $count
+			Write-Progress -activity "Downloading file '$($url.split('/') | Select-Object -Last 1)'" -status "Downloaded ($([System.Math]::Floor($downloadedBytes/1024))K of $($totalLength)K): " -PercentComplete ((([System.Math]::Floor($downloadedBytes/1024)) / $totalLength) * 100)
+		}
+		
+		Write-Progress -activity "Finished downloading file '$($url.split('/') | Select-Object -Last 1)'" -Status "Done" -Completed
+		
+		$targetStream.Flush()
+		$targetStream.Close()
+		$targetStream.Dispose()
+		$responseStream.Dispose()
 		
 	}
 	catch
@@ -796,136 +883,151 @@ function Download-SEFile
 }
 #endregion Main Functions
 
-#region Validation
-#region Elevation Check
-If (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"))
+:main do
 {
-	Write-Log -Message "You do not have Administrator rights to run this script!`nPlease re-run this script as an Administrator!" -EntryType Error -EventID 666 -ForegroundColor Red
-	Stop-Execution
-}
-#endregion Elevation Check
-
-#region Invalid parameterization Check
-if ($Offline -and $Download)
-{
-	Write-Log -Message "Invalid Parameter combination: Cannot use offline mode and download at the same time." -EventID 666 -EntryType Error
-	Stop-Execution
-}
-
-if ((-not $Install) -and (-not $Download) -and (-not $ApplyTemplate) -and (-not $PSBoundParameters.ContainsKey('Deploy')))
-{
-	# Give guidance
-	if (-not $_SilentOverride) { Write-SEDeployHelp }
-	Write-Log -Message "Invalid Parameter combination: Must specify at least one of the following parameters: '-Download', '-Install' or '-Deploy'." -EventID 666 -EntryType Error
-	Stop-Execution
-}
-
-if (($Silent) -and (-not $SilentOCCConfirmed) -and ($Deploy -eq "All"))
-{
-	Write-Log -Message "Invalid Parameters: Cannot silently install OCC Connector without confirming this with the Parameter '-SilentOCCConfirmed'" -EventID 666 -EntryType Error
-	Stop-Execution
-}
-#endregion Invalid parameterization Check
-
-#region OSVersion Check
-If ([environment]::OSVersion.Version.Major -lt 6)
-{
-	if (-not $script:_SilentOverride)
+	#region Validation
+	#region Elevation Check
+	If (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"))
 	{
-		Write-Log -Message "Your operating system is not officially supported.`nThe install will most likely work but we can no longer provide support for Server-Eye on this system." -EntryType Warning -EventID 400
-		
-		$yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes, continue without support", "The install will continue, but we cannot help you if something doesn't work."
-		$no = New-Object System.Management.Automation.Host.ChoiceDescription "&No, cancel the install", "End the install right now."
-		$choices = [System.Management.Automation.Host.ChoiceDescription[]]($yes, $no)
-		$caption = ""
-		$message = "Do you still want to install Server-Eye on this computer?"
-		$result = $Host.UI.PromptForChoice($caption, $message, $choices, 1)
-		if ($result -eq 1)
-		{
-			Write-Log -Message "Execution interrupted by user" -EventID 666 -EntryType Warning -Silent $true
-			Stop-Execution
-		}
-		else { Write-Log -Message "Execution continued by user" -EventID 499 -EntryType Warning -Silent $true }
-	}
-	else
-	{
-		Write-Log -Message "Non-Supported OS detected, interrupting Installation" -EventID 666 -EntryType Error
+		Write-Log -Message "You do not have Administrator rights to run this script!`nPlease re-run this script as an Administrator!" -EntryType Error -EventID 666 -ForegroundColor Red
 		Stop-Execution
 	}
-}
-#endregion OSVersion Check
-
-#region validate already installed
-$progdir = Get-ProgramFilesDirectory
-$confDir = "$progdir\Server-Eye\config"
-$confFileMAC = "$confDir\se3_mac.conf"
-$OCCConfig.ConfFileMAC = $confFileMAC
-$confFileCC = "$confDir\se3_cc.conf"
-$HubConfig.ConfFileCC = $confFileCC
-$seDataDir = $env:ProgramData
-$seDataDir = "$seDataDir\ServerEye3"
-
-
-if ((-not $SkipInstalledCheck) -and (($Install -or $PSBoundParameters.ContainsKey('Deploy')) -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir))))
-{
-	Write-Log -Message "Server-Eye is or was installed on this system. This script works only on system without a previous Server-Eye installation" -EventID 666 -EntryType Error -ForegroundColor Red
-	Stop-Execution
-}
-#endregion validate already installed
-
-#region validate script version
-if (-not $Offline)
-{
-	try
+	#endregion Elevation Check
+	
+	#region Invalid parameterization Check
+	if ($Offline -and $Download)
 	{
-		Write-Log -Message "Checking for new script version"
-		$wc=new-object system.net.webclient
-		$result = $wc.DownloadString("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersionCli")
-		if ($SE_version -lt $result)
+		Write-Log -Message "Invalid Parameter combination: Cannot use offline mode and download at the same time." -EventID 666 -EntryType Error
+		Stop-Execution
+	}
+	
+	if ((-not $Install) -and (-not $Download) -and (-not $ApplyTemplate) -and (-not $PSBoundParameters.ContainsKey('Deploy')))
+	{
+		# Give guidance
+		if (-not $_SilentOverride) { Write-SEDeployHelp }
+		Write-Log -Message "Invalid Parameter combination: Must specify at least one of the following parameters: '-Download', '-Install' or '-Deploy'." -EventID 666 -EntryType Error
+		Stop-Execution
+	}
+	
+	if (($Silent) -and (-not $SilentOCCConfirmed) -and ($Deploy -eq "All"))
+	{
+		Write-Log -Message "Invalid Parameters: Cannot silently install OCC Connector without confirming this with the Parameter '-SilentOCCConfirmed'" -EventID 666 -EntryType Error
+		Stop-Execution
+	}
+	#endregion Invalid parameterization Check
+	
+	#region OSVersion Check
+	If ([environment]::OSVersion.Version.Major -lt 6)
+	{
+		if (-not $script:_SilentOverride)
 		{
-			Write-Log -Message @"
+			Write-Log -Message "Your operating system is not officially supported.`nThe install will most likely work but we can no longer provide support for Server-Eye on this system." -EntryType Warning -EventID 400
+			
+			$yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes, continue without support", "The install will continue, but we cannot help you if something doesn't work."
+			$no = New-Object System.Management.Automation.Host.ChoiceDescription "&No, cancel the install", "End the install right now."
+			$choices = [System.Management.Automation.Host.ChoiceDescription[]]($yes, $no)
+			$caption = ""
+			$message = "Do you still want to install Server-Eye on this computer?"
+			$result = $Host.UI.PromptForChoice($caption, $message, $choices, 1)
+			if ($result -eq 1)
+			{
+				Write-Log -Message "Execution interrupted by user" -EventID 666 -EntryType Warning -Silent $true
+				Stop-Execution
+			}
+			else { Write-Log -Message "Execution continued by user" -EventID 499 -EntryType Warning -Silent $true }
+		}
+		else
+		{
+			Write-Log -Message "Non-Supported OS detected, interrupting Installation" -EventID 666 -EntryType Error
+			Stop-Execution
+		}
+	}
+	#endregion OSVersion Check
+	
+	#region validate already installed
+	$progdir = Get-ProgramFilesDirectory
+	$confDir = "$progdir\Server-Eye\config"
+	$confFileMAC = "$confDir\se3_mac.conf"
+	$OCCConfig.ConfFileMAC = $confFileMAC
+	$confFileCC = "$confDir\se3_cc.conf"
+	$HubConfig.ConfFileCC = $confFileCC
+	$seDataDir = "$env:ProgramData\ServerEye3"
+	
+	
+	if ((-not $SkipInstalledCheck) -and (($Install -or $PSBoundParameters.ContainsKey('Deploy')) -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir))))
+	{
+		Write-Log -Message "Server-Eye is or was installed on this system. This script works only on system without a previous Server-Eye installation" -EventID 666 -EntryType Error -ForegroundColor Red
+		Stop-Execution
+	}
+	#endregion validate already installed
+	
+	#region validate script version
+	if (-not $Offline)
+	{
+		try
+		{
+			Write-Log -Message "Checking for new script version"
+			$wc = new-object system.net.webclient
+			$result = $wc.DownloadString("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersionCli")
+			if ($SE_version -lt $result)
+			{
+				Write-Log -Message @"
 This version of the Server-Eye deployment script is no longer supported.
 Please update to the newest version with this command:
 Invoke-WebRequest "$($SE_baseDownloadUrl)/$($SE_cloudIdentifier)/Deploy-ServerEye.ps1" -OutFile Deploy-ServerEye.ps1
 "@ -EventID 666 -EntryType Error
-			Stop-Execution
+				Stop-Execution
+			}
 		}
-	}
-	# Failing the update-check is not necessarily a game-over. Failure to download the actual packages will terminate script
-	catch
-	{
-		Write-Log -Message "Failed to access version information: $($_.Exception.Message)" -EventID 404 -EntryType Warning
-	}
-}
-#endregion validate script version
-
-#region Validate DeployPath
-if (-not (Test-Path $DeployPath))
-{
-	try
-	{
-		$folder = New-Item -Path $DeployPath -ItemType 'Directory' -Force -Confirm:$false
-		if ((-not $folder.Exists) -or (-not $folder.PSIsContainer))
+		# Failing the update-check is not necessarily a game-over. Failure to download the actual packages will terminate script
+		catch
 		{
-			Write-Log "Stopping Execution: Deployment Path: $DeployPath could not be created."
+			Write-Log -Message "Failed to access version information: $($_.Exception.Message)" -EventID 404 -EntryType Warning
+		}
+	}
+	#endregion validate script version
+	
+	#region Validate DeployPath
+	if (-not (Test-Path $DeployPath))
+	{
+		try
+		{
+			$folder = New-Item -Path $DeployPath -ItemType 'Directory' -Force -Confirm:$false
+			if ((-not $folder.Exists) -or (-not $folder.PSIsContainer))
+			{
+				Write-Log "Stopping Execution: Deployment Path: $DeployPath could not be created."
+				Stop-Execution
+			}
+			else { $DeployPath = $folder.FullName }
+		}
+		catch
+		{
+			Write-Log "Stopping Execution: Deployment Path: $DeployPath could not be created: $($_.Exception.Message)"
 			Stop-Execution
 		}
-		else { $DeployPath = $folder.FullName }
 	}
-	catch
+	else
 	{
-		Write-Log "Stopping Execution: Deployment Path: $DeployPath could not be created: $($_.Exception.Message)"
-		Stop-Execution
+		$DeployPath = Get-Item -Path $DeployPath | Select-Object -ExpandProperty FullName -First 1
 	}
+	#endregion Validate DeployPath
+	#endregion Validation
+	
+	# Finally launch into the main execution
+	$params = @{
+		Deploy = $Deploy
+		Download = $Download
+		Install = $Install
+		OCCServer = $SE_occServer
+		BaseDownloadUrl = $SE_baseDownloadUrl
+		Vendor = $SE_vendor
+		Version = $SE_version
+		Path = $DeployPath
+		OCCConfig = $OCCConfig
+		HubConfig = $HubConfig
+		TemplateConfig = $TemplateConfig
+		InstallDotNet = $InstallDotNet.ToBool()
+	}
+	Start-ServerEyeInstallation @params
 }
-else
-{
-	$DeployPath = Get-Item -Path $DeployPath | Select-Object -ExpandProperty FullName -First 1
-}
-#region Validate DeployPath
-#endregion Validation
-
-# Finally launch into the main execution
-Start-ServerEyeInstallation -Deploy $Deploy -Download $Download -Install $Install -OCCServer $SE_occServer -BaseDownloadUrl $SE_baseDownloadUrl -Vendor $SE_vendor -Version $SE_version -Path $DeployPath -OCCConfig $OCCConfig -HubConfig $HubConfig
-
-
+while ($false)
