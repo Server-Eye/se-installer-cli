@@ -44,6 +44,8 @@
     <Compile Include="AUTHORS" />
     <Compile Include="de\Deploy-ServerEye.ps1" />
     <Compile Include="de\Deploy-ServerEye_unsigned.ps1" />
+    <Compile Include="de\Download-ServerEye.ps1" />
+    <Compile Include="de\Download-ServerEye_unsigned.ps1" />
     <Compile Include="LICENSE" />
     <Compile Include="README.md" />
   </ItemGroup>
