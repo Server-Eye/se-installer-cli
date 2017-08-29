@@ -19,7 +19,16 @@ Invoke-WebRequest "https://occ.server-eye.de/download/se/Deploy-ServerEye.ps1" -
 
 ## Usage
 
-The script can be controlled by using commandline parameters.
+The script can be controlled by using command line parameters.
+
+The parameter _customerId_ and _secretKey_ must match the existing customer data. This is not your Server-Eye username or password! Please contact our support team if you do not know the correct customerId and secretKey.
+
+##### customerId
+This is the internal customer number created when you install a new customer. This script cannot create a new customer.
+
+##### secretKey
+The _secretKey_ authenticates the Server-Eye OCC-Connector Cloud connection. It is **NOT** your password.  
+
 
 ### Download Server-Eye Setup Files
 ```PowerShell
