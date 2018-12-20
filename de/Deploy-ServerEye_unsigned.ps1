@@ -63,11 +63,11 @@
 	.PARAMETER LogFile
 		Path including filename. Logs messages also to that file.
 
-	.PARAMETER InstallDotNet
-		Insures that .Net Framework 3.5 is installed.
-
 	.PARAMETER NoExit
 		Using this, the script is no longer terminated with "exit", allowing it to be used as part of a greater script.
+	
+	.PARAMETER InstallDotNet
+		No longer in Use
 	
 	.EXAMPLE
 		PS C:\> .\Deploy-ServerEye.ps1 -Download
@@ -100,7 +100,7 @@
 		https://github.com/Server-Eye/se-installer-cli
 #>
 
-#Requires –Version 2
+#Requires -Version 2
 
 [CmdletBinding(DefaultParameterSetName = 'None')]
 param (
@@ -154,21 +154,23 @@ param (
 	$DeployPath,
 	
 	[switch]
-	$SkipInstalledCheck,
+    $SkipInstalledCheck,
+    
+    [switch]
+    $SkipLogInstalledCheck,
 	
 	[string]
 	$LogFile,
 	
 	[switch]
-	$InstallDotNet,
-	
+	$NoExit,
+
 	[switch]
-	$NoExit
+	$InstallDotNet
 )
 
 #region Preconfigure some static settings
 # Note: Changes in the infrastructure may require reconfiguring these and break scripts deployed without these changes
-$SE_version = 404
 $SE_occServer = "occ.server-eye.de"
 $SE_apiServer = "api.server-eye.de"
 $SE_configServer = "config.server-eye.de"
@@ -177,6 +179,8 @@ $SE_queueServer = "queue.server-eye.de"
 $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
 $SE_vendor = "Vendor.ServerEye"
+$wcVersion = new-object system.net.webclient
+$SE_version = $wcVersion.DownloadString("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersion")
 
 if ($DeployPath -eq "")
 {
@@ -467,9 +471,6 @@ function Start-ServerEyeInstallation
 		$BaseDownloadUrl,
 		
 		[string]
-		$Vendor,
-		
-		[string]
 		$Version,
 		
 		[string]
@@ -479,10 +480,7 @@ function Start-ServerEyeInstallation
 		
 		$HubConfig,
 		
-		$TemplateConfig,
-		
-		[bool]
-		$InstallDotNet
+		$TemplateConfig
 	)
 	
 	if (-not $Silent) { Write-Header }
@@ -524,23 +522,17 @@ function Start-ServerEyeInstallation
 	
 	Write-Log "Starting installation process"
 	
-	if ($InstallDotNet)
-	{
-		Write-Log "Installing .Net 3.5" -EventID 201
-		& DISM /Online /Enable-Feature /FeatureName:NetFx3 /All
-	}
-	
 	if ($Download)
 	{
 		Write-Log "Starting Download Routine" -EventID 10
-		Download-SEInstallationFiles -BaseDownloadUrl $BaseDownloadUrl -Path $Path -Vendor $Vendor -Version $Version
+		Download-SEInstallationFiles -BaseDownloadUrl $BaseDownloadUrl -Path $Path -Version $Version
 		Write-Log "Download Routine finished" -EventID 11
 	}
 	
 	if ($Install)
 	{
 		Write-Log "Starting Installation Routine" -EventID 12
-		Install-SEConnector -Path $Path -Vendor $Vendor
+		Install-SEConnector -Path $Path
 		Write-Log "Installation Routine finished" -EventID 13
 	}
 	
@@ -661,9 +653,6 @@ function Download-SEInstallationFiles
 		$BaseDownloadUrl,
 		
 		[string]
-		$Vendor,
-		
-		[string]
 		$Version,
 		
 		[string]
@@ -674,14 +663,19 @@ function Download-SEInstallationFiles
 	$wc = new-object system.net.webclient
 	$curVersion = $wc.DownloadString("$BaseDownloadUrl/$SE_cloudIdentifier/currentVersion")
 	Write-Log "done" -ForegroundColor Green
+
+	Write-Log "  downloading ServerEye.Setup... " -NoNewline
+	Download-SEFile "$BaseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" "$Path\ServerEyeSetup.exe"
+	Write-Log "done" -ForegroundColor Green
 	
 	Write-Log "  downloading ServerEye.Vendor... " -NoNewline
-	Download-SEFile "$BaseDownloadUrl/vendor/$Vendor/Vendor.msi" "$Path\Vendor.msi"
+	Download-SEFile "$BaseDownloadUrl/vendor/$SE_vendor/Vendor.msi" "$Path\Vendor.msi"
 	Write-Log "done" -ForegroundColor Green
 	
 	Write-Log "  downloading ServerEye.Core... " -NoNewline
-	Download-SEFile "$BaseDownloadUrl/$curVersion/ServerEye.msi" "$Path\ServerEye.msi"
+	Download-SEFile "$BaseDownloadUrl/setup/ServerEye.msi" "$Path\ServerEye.msi"
 	Write-Log "done" -ForegroundColor Green
+
 	
 }
 
@@ -690,13 +684,10 @@ function Install-SEConnector
 	[CmdletBinding()]
 	Param (
 		[string]
-		$Path,
-		
-		[string]
-		$Vendor
+		$Path
 	)
 	
-	Write-Host "  installing $($Vendor)...  " -NoNewline
+	Write-Host "  installing Server-eye in Version:$SE_version...  " -NoNewline
 	if (-not (Test-Path "$Path\Vendor.msi"))
 	{
 		Write-Host "failed" -ForegroundColor Red
@@ -704,11 +695,7 @@ function Install-SEConnector
 		Write-Log -Message "Installation failed, file not found: $Path\Vendor.msi" -EventID 666 -EntryType Error -Silent $true
 		Stop-Execution
 	}
-	
-	Start-Process "$Path\Vendor.msi" /passive -Wait
-	Write-Host "done" -ForegroundColor Green
-	
-	Write-Host "  installing ServerEye.Core...  " -NoNewline
+
 	if (-not (Test-Path "$Path\ServerEye.msi"))
 	{
 		Write-Host "failed" -ForegroundColor Red
@@ -716,8 +703,15 @@ function Install-SEConnector
 		Write-Log -Message "Installation failed, file not found: $Path\ServerEye.msi" -EventID 666 -EntryType Error -Silent $true
 		Stop-Execution
 	}
+	if (-not (Test-Path "$Path\ServerEyeSetup.exe"))
+	{
+		Write-Host "failed" -ForegroundColor Red
+		Write-Host "  The file ServerEyeSetup.exe is missing." -ForegroundColor Red
+		Write-Log -Message "Installation failed, file not found: $Path\ServerEyeSetup.exe" -EventID 666 -EntryType Error -Silent $true
+		Stop-Execution
+	}
 	
-	Start-Process "$Path\ServerEye.msi" /passive -Wait
+	Start-Process -Wait -FilePath "$Path\ServerEyeSetup.exe" -ArgumentList "/install /passive /quiet /l C:\kits\se\log.txt"
 	Write-Host "done" -ForegroundColor Green
 }
 
@@ -811,6 +805,7 @@ name=$($HubConfig.NodeName)
 description=
 port=$($HubConfig.HubPort)
 "@
+
 		if ($HubConfig.ParentGuid)
 		{
 			"parentGuid=$($HubConfig.ParentGuid)" | Add-Content $HubConfig.ConfFileCC  -ErrorAction Stop
@@ -955,8 +950,11 @@ function Download-SEFile
 	
 	
 	if ((-not $SkipInstalledCheck) -and (($Install -or $PSBoundParameters.ContainsKey('Deploy')) -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir))))
-	{
-		Write-Log -Message "Server-Eye is or was installed on this system. This script works only on system without a previous Server-Eye installation" -EventID 666 -EntryType Error -ForegroundColor Red
+	{   
+        if(-not $SkipLogInstalledCheck){
+            Write-Log -Message "Server-Eye is or was installed on this system. This script works only on system without a previous Server-Eye installation" -EventID 666 -EntryType Error -ForegroundColor Red    
+        }
+		
 		Stop-Execution
 	}
 	#endregion validate already installed
@@ -1020,13 +1018,11 @@ Invoke-WebRequest "$($SE_baseDownloadUrl)/$($SE_cloudIdentifier)/Deploy-ServerEy
 		Install = $Install
 		OCCServer = $SE_occServer
 		BaseDownloadUrl = $SE_baseDownloadUrl
-		Vendor = $SE_vendor
 		Version = $SE_version
 		Path = $DeployPath
 		OCCConfig = $OCCConfig
 		HubConfig = $HubConfig
 		TemplateConfig = $TemplateConfig
-		InstallDotNet = $InstallDotNet.ToBool()
 	}
 	Start-ServerEyeInstallation @params
 }
