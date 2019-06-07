@@ -14,6 +14,8 @@ $apikey=""
 $parentGuid=""
 $logdatei="c:\se_install_log.txt"
 $remoteLog="\\fileserver\se_install\$env:computername.txt"
+# Proxy if needed etc. "http://10.50.2.30:8080"
+$proxy = $null
 # Ändern auf $true wenn keine Log bei bestehender Installtion gewünscht sind
 $noinstallLog = $false
 
@@ -23,6 +25,8 @@ $noinstallLog = $false
 
 # Download der aktuellen Version
 $WebClient = New-Object System.Net.WebClient
+$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+$WebClient.Proxy = $WebProxy
 $WebClient.DownloadFile("https://occ.server-eye.de/download/se/Deploy-ServerEye.ps1","$env:windir\temp\ServerEye.ps1")
 
 
@@ -30,10 +34,10 @@ $WebClient.DownloadFile("https://occ.server-eye.de/download/se/Deploy-ServerEye.
 Set-Location "$env:windir\temp"
 
 If ($noinstallLog -eq $true){
-    .\ServerEye.ps1 -Download -Install -Deploy SensorhubOnly -ParentGuid $parentGuid -Customer $customer -Secret $secret -ApplyTemplate -TemplateId $templateid -ApiKey $apikey -DeployPath "$env:windir\temp" -LogFile $logdatei -Silent -SkipLogInstalledCheck
+    .\ServerEye.ps1 -Download -Install -Deploy SensorhubOnly -ParentGuid $parentGuid -Customer $customer -Secret $secret -ApplyTemplate -TemplateId $templateid -ApiKey $apikey -DeployPath "$env:windir\temp" -LogFile $logdatei -Silent -proxy $WebProxy -SkipLogInstalledCheck
 }
 else {
-    .\ServerEye.ps1 -Download -Install -Deploy SensorhubOnly -ParentGuid $parentGuid -Customer $customer -Secret $secret -ApplyTemplate -TemplateId $templateid -ApiKey $apikey -DeployPath "$env:windir\temp" -LogFile $logdatei -Silent
+    .\ServerEye.ps1 -Download -Install -Deploy SensorhubOnly -ParentGuid $parentGuid -Customer $customer -Secret $secret -ApplyTemplate -TemplateId $templateid -ApiKey $apikey -DeployPath "$env:windir\temp" -LogFile $logdatei -Silent -proxy $WebProxy
 }
 
 

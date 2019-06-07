@@ -65,6 +65,9 @@
 
 	.PARAMETER NoExit
 		Using this, the script is no longer terminated with "exit", allowing it to be used as part of a greater script.
+
+	.PARAMETER Proxy
+		Proxy seetings if needed
 	
 	.PARAMETER InstallDotNet
 		No longer in Use
@@ -165,6 +168,8 @@ param (
 	[switch]
 	$NoExit,
 
+	$proxy,
+
 	[switch]
 	$InstallDotNet
 )
@@ -179,8 +184,10 @@ $SE_queueServer = "queue.server-eye.de"
 $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
 $SE_vendor = "Vendor.ServerEye"
-$wcVersion = new-object system.net.webclient
-$SE_version = $wcVersion.DownloadString("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersion")
+$wc= new-object system.net.webclient
+$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+$wc.Proxy = $WebProxy
+$SE_Version = $wc.DownloadString("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersion")
 
 if ($DeployPath -eq "")
 {
@@ -480,7 +487,11 @@ function Start-ServerEyeInstallation
 		
 		$HubConfig,
 		
-		$TemplateConfig
+		$TemplateConfig,
+
+		$proxy,
+
+		$wc
 	)
 	
 	if (-not $Silent) { Write-Header }
@@ -525,7 +536,7 @@ function Start-ServerEyeInstallation
 	if ($Download)
 	{
 		Write-Log "Starting Download Routine" -EventID 10
-		Download-SEInstallationFiles -BaseDownloadUrl $BaseDownloadUrl -Path $Path -Version $Version
+		Download-SEInstallationFiles -BaseDownloadUrl $BaseDownloadUrl -Path $Path -Version $Version -proxy $WebProxy
 		Write-Log "Download Routine finished" -EventID 11
 	}
 	
@@ -656,24 +667,25 @@ function Download-SEInstallationFiles
 		$Version,
 		
 		[string]
-		$Path
+		$Path,
+
+		$proxy
 	)
 	
 	Write-Log "  getting current Server-Eye version... " -NoNewLine
-	$wc = new-object system.net.webclient
-	$curVersion = $wc.DownloadString("$BaseDownloadUrl/$SE_cloudIdentifier/currentVersion")
+	Write-Log "  Version is:$version" -NoNewLine
 	Write-Log "done" -ForegroundColor Green
 
 	Write-Log "  downloading ServerEye.Setup... " -NoNewline
-	Download-SEFile "$BaseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" "$Path\ServerEyeSetup.exe"
+	Download-SEFile "$BaseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" "$Path\ServerEyeSetup.exe" -proxy $proxy
 	Write-Log "done" -ForegroundColor Green
 	
 	Write-Log "  downloading ServerEye.Vendor... " -NoNewline
-	Download-SEFile "$BaseDownloadUrl/vendor/$SE_vendor/Vendor.msi" "$Path\Vendor.msi"
+	Download-SEFile "$BaseDownloadUrl/vendor/$SE_vendor/Vendor.msi" "$Path\Vendor.msi" -proxy $proxy
 	Write-Log "done" -ForegroundColor Green
 	
 	Write-Log "  downloading ServerEye.Core... " -NoNewline
-	Download-SEFile "$BaseDownloadUrl/setup/ServerEye.msi" "$Path\ServerEye.msi"
+	Download-SEFile "$BaseDownloadUrl/setup/ServerEye.msi" "$Path\ServerEye.msi" -proxy $proxy
 	Write-Log "done" -ForegroundColor Green
 
 	
@@ -837,13 +849,16 @@ function Download-SEFile
 		$Url,
 		
 		[string]
-		$TargetFile
+		$TargetFile,
+
+		$proxy
 	)
 	
 	try
 	{
 		$uri = New-Object "System.Uri" "$url"
 		$request = [System.Net.HttpWebRequest]::Create($uri)
+		$request.proxy = $proxy
 		$request.set_Timeout(15000) #15 second timeout
 		$response = $request.GetResponse()
 		$totalLength = [System.Math]::Floor($response.get_ContentLength()/1024)
@@ -965,7 +980,6 @@ function Download-SEFile
 		try
 		{
 			Write-Log -Message "Checking for new script version"
-			$wc = new-object system.net.webclient
 			$result = $wc.DownloadString("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersionCli")
 			if ($SE_version -lt $result)
 			{
@@ -1023,16 +1037,16 @@ Invoke-WebRequest "$($SE_baseDownloadUrl)/$($SE_cloudIdentifier)/Deploy-ServerEy
 		OCCConfig = $OCCConfig
 		HubConfig = $HubConfig
 		TemplateConfig = $TemplateConfig
+		proxy = $WebProxy
 	}
 	Start-ServerEyeInstallation @params
 }
 while ($false)
-
 # SIG # Begin signature block
 # MIIknAYJKoZIhvcNAQcCoIIkjTCCJIkCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUZk49Igr149Ijf5Li+xNLSnNU
-# 5dOggh+oMIIEhDCCA2ygAwIBAgIQQhrylAmEGR9SCkvGJCanSzANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUKZCA7rYCSnC6CF+32cv+5GoR
+# Ia6ggh+oMIIEhDCCA2ygAwIBAgIQQhrylAmEGR9SCkvGJCanSzANBgkqhkiG9w0B
 # AQUFADBvMQswCQYDVQQGEwJTRTEUMBIGA1UEChMLQWRkVHJ1c3QgQUIxJjAkBgNV
 # BAsTHUFkZFRydXN0IEV4dGVybmFsIFRUUCBOZXR3b3JrMSIwIAYDVQQDExlBZGRU
 # cnVzdCBFeHRlcm5hbCBDQSBSb290MB4XDTA1MDYwNzA4MDkxMFoXDTIwMDUzMDEw
@@ -1206,23 +1220,23 @@ while ($false)
 # aXRlZDEkMCIGA1UEAxMbU2VjdGlnbyBSU0EgQ29kZSBTaWduaW5nIENBAhA2Lp3Z
 # BlJp2WChqqlUZAw4MAkGBSsOAwIaBQCgeDAYBgorBgEEAYI3AgEMMQowCKACgACh
 # AoAAMBkGCSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAM
-# BgorBgEEAYI3AgEVMCMGCSqGSIb3DQEJBDEWBBTcSvbVxW5NbM7naQxXjSrq0bWO
-# IDANBgkqhkiG9w0BAQEFAASCAQBpk5YeQNNJ9XYlPrWUgdTl7tyDbKkE//FAmahT
-# /qrKhOqDCVlqJvOGLx9JvhqxaI47Z50jb0Foz6dFI7x0ixgY8DMUGk3J9x1zHOGH
-# 1aLAzNDSSHhaBteNeuslhLEZOyuNRhNdQEefJemop/blO3rPAoL2io9YtblsHCP2
-# cmaXzYG4x69+EFOykuaRUsFN0R/PYjwr7tJy4ydYIezhSaV0BJnhsTecAKDL480J
-# dj740wUblbqJXr7RETpmhUKGq+yHqiwhqzOY7wvNaQTmEE6ALbgyawjLKAZ719fm
-# DnETFoIIfwIUAzCNAIhoasb9/uh551Qn6XfCFmb7CNMKrZPCoYICKDCCAiQGCSqG
+# BgorBgEEAYI3AgEVMCMGCSqGSIb3DQEJBDEWBBTN3Ld4f1tlv4SknoMoYJHsg15F
+# oTANBgkqhkiG9w0BAQEFAASCAQBWHUZZmJA7in53mrLEkdaOaAhxPKX9gFF2RQmC
+# t2YEMrX+euePHlGQD9mdh4JIBezJH8NigJEY0Lrmg2K60UuaWE71fYQecpQ7O8/d
+# YOeVHxcdDDrjAsOc7jFUnHCHlsCDJQXBB/IIUkBaAVW3JIn7+M8X0HVq/1R2006Y
+# RHAfBJWL61AwKJSo+HeHVNj7m96AMygmfIuUs22ta3T41UGfMT5KgnyHsee4wZ0O
+# cyG/85kYra72brl5MEIciDS03Ic/rFmDJ+U8zkoKw2Vwo/lqok5qaIWTfPzcOur/
+# j7lzqj8wQmjxomsp9Xk5hWTdjarrTaapy0+eQsGQTBDPuMDeoYICKDCCAiQGCSqG
 # SIb3DQEJBjGCAhUwggIRAgEBMIGOMHoxCzAJBgNVBAYTAkdCMRswGQYDVQQIExJH
 # cmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcTB1NhbGZvcmQxGjAYBgNVBAoTEUNP
 # TU9ETyBDQSBMaW1pdGVkMSAwHgYDVQQDExdDT01PRE8gVGltZSBTdGFtcGluZyBD
 # QQIQK3PbdGMRTFpbMkryMFdySTAJBgUrDgMCGgUAoF0wGAYJKoZIhvcNAQkDMQsG
-# CSqGSIb3DQEHATAcBgkqhkiG9w0BCQUxDxcNMTkwNTI5MTQxMDE3WjAjBgkqhkiG
-# 9w0BCQQxFgQUQ1LPnD72oF6erdaNGphiUSFsCI0wDQYJKoZIhvcNAQEBBQAEggEA
-# lRMSblfWRP8QDdYqV0WVsqhpoyv8zBhlcrl4D/B80bgKIolWdm/miDNc1f2aqL/D
-# Kt7DDSvOVcJheIZx6WE40VHTsVhlMkTTitJgYMX3u2E7guWICbe1OP0gnpZkbrVT
-# D/V3z9TF7wSJiMbSfN6gbbay7X7/gUONZg6ksv/I/0qLst41x4mdNjHEoRs69o0v
-# 7CcWuzym/R79mQqC5DTtZ8XmDtu/HT/vOJ3ay8y0u4TGwzXVJiT7BuRuFNYoLoOw
-# gywR483cvG4S4BytMEZq8q7zruesUZu/F1+NS/VOCUDX6U2kDmgxGfLbKRuWMu+M
-# EURJXlD5RZ7JLXPNDxNdVg==
+# CSqGSIb3DQEHATAcBgkqhkiG9w0BCQUxDxcNMTkwNjA3MDg1ODIzWjAjBgkqhkiG
+# 9w0BCQQxFgQUMa5ArYGdxMjhj/8U4kij1Gq6OrAwDQYJKoZIhvcNAQEBBQAEggEA
+# J4Zahk774jbtnmev456Stc/Jg3atPAQZIgYk1pbTYECRb+x0Y7vh5rfSaKUX9qf4
+# DXGAnc364Arfd2cByE2HEcm0WjErKqag58B/tyiYKlHqqMBXmxQQvXQHRGyOkXi+
+# L5dUq8vk6K9B4ne2G5sufvSZxvVOi0ICqpFecs5pXabnKoIwQ9alDuKEVzPp6RbW
+# HMh+RJMVBNwdv18z+hfqYaBv4ZEOT3jheY8HiW5kn1GpB7C7lNCLRepI0x4BXSAa
+# BnB20HYfmnP7dY/8yf8M8UysvIxtXtq8rL9q9Ta2ovmvOfQwPjH21YWK/HY5PC1A
+# VnCTBfru0uQoFHv+nn3+CQ==
 # SIG # End signature block

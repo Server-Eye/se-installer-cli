@@ -65,6 +65,9 @@
 
 	.PARAMETER NoExit
 		Using this, the script is no longer terminated with "exit", allowing it to be used as part of a greater script.
+
+	.PARAMETER Proxy
+		Proxy seetings if needed
 	
 	.PARAMETER InstallDotNet
 		No longer in Use
@@ -165,6 +168,8 @@ param (
 	[switch]
 	$NoExit,
 
+	$proxy,
+
 	[switch]
 	$InstallDotNet
 )
@@ -179,8 +184,10 @@ $SE_queueServer = "queue.server-eye.de"
 $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
 $SE_vendor = "Vendor.ServerEye"
-$wcVersion = new-object system.net.webclient
-$SE_version = $wcVersion.DownloadString("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersion")
+$wc= new-object system.net.webclient
+$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+$wc.Proxy = $WebProxy
+$SE_Version = $wc.DownloadString("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersion")
 
 if ($DeployPath -eq "")
 {
@@ -480,7 +487,11 @@ function Start-ServerEyeInstallation
 		
 		$HubConfig,
 		
-		$TemplateConfig
+		$TemplateConfig,
+
+		$proxy,
+
+		$wc
 	)
 	
 	if (-not $Silent) { Write-Header }
@@ -525,7 +536,7 @@ function Start-ServerEyeInstallation
 	if ($Download)
 	{
 		Write-Log "Starting Download Routine" -EventID 10
-		Download-SEInstallationFiles -BaseDownloadUrl $BaseDownloadUrl -Path $Path -Version $Version
+		Download-SEInstallationFiles -BaseDownloadUrl $BaseDownloadUrl -Path $Path -Version $Version -proxy $WebProxy
 		Write-Log "Download Routine finished" -EventID 11
 	}
 	
@@ -656,24 +667,25 @@ function Download-SEInstallationFiles
 		$Version,
 		
 		[string]
-		$Path
+		$Path,
+
+		$proxy
 	)
 	
 	Write-Log "  getting current Server-Eye version... " -NoNewLine
-	$wc = new-object system.net.webclient
-	$curVersion = $wc.DownloadString("$BaseDownloadUrl/$SE_cloudIdentifier/currentVersion")
+	Write-Log "  Version is:$version" -NoNewLine
 	Write-Log "done" -ForegroundColor Green
 
 	Write-Log "  downloading ServerEye.Setup... " -NoNewline
-	Download-SEFile "$BaseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" "$Path\ServerEyeSetup.exe"
+	Download-SEFile "$BaseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" "$Path\ServerEyeSetup.exe" -proxy $proxy
 	Write-Log "done" -ForegroundColor Green
 	
 	Write-Log "  downloading ServerEye.Vendor... " -NoNewline
-	Download-SEFile "$BaseDownloadUrl/vendor/$SE_vendor/Vendor.msi" "$Path\Vendor.msi"
+	Download-SEFile "$BaseDownloadUrl/vendor/$SE_vendor/Vendor.msi" "$Path\Vendor.msi" -proxy $proxy
 	Write-Log "done" -ForegroundColor Green
 	
 	Write-Log "  downloading ServerEye.Core... " -NoNewline
-	Download-SEFile "$BaseDownloadUrl/setup/ServerEye.msi" "$Path\ServerEye.msi"
+	Download-SEFile "$BaseDownloadUrl/setup/ServerEye.msi" "$Path\ServerEye.msi" -proxy $proxy
 	Write-Log "done" -ForegroundColor Green
 
 	
@@ -837,13 +849,16 @@ function Download-SEFile
 		$Url,
 		
 		[string]
-		$TargetFile
+		$TargetFile,
+
+		$proxy
 	)
 	
 	try
 	{
 		$uri = New-Object "System.Uri" "$url"
 		$request = [System.Net.HttpWebRequest]::Create($uri)
+		$request.proxy = $proxy
 		$request.set_Timeout(15000) #15 second timeout
 		$response = $request.GetResponse()
 		$totalLength = [System.Math]::Floor($response.get_ContentLength()/1024)
@@ -965,7 +980,6 @@ function Download-SEFile
 		try
 		{
 			Write-Log -Message "Checking for new script version"
-			$wc = new-object system.net.webclient
 			$result = $wc.DownloadString("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersionCli")
 			if ($SE_version -lt $result)
 			{
@@ -1023,6 +1037,7 @@ Invoke-WebRequest "$($SE_baseDownloadUrl)/$($SE_cloudIdentifier)/Deploy-ServerEy
 		OCCConfig = $OCCConfig
 		HubConfig = $HubConfig
 		TemplateConfig = $TemplateConfig
+		proxy = $WebProxy
 	}
 	Start-ServerEyeInstallation @params
 }
