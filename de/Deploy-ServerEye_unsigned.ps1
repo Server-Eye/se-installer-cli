@@ -168,7 +168,7 @@ param (
 	[switch]
 	$NoExit,
 
-	$proxy,
+	$proxy=$Null,
 
 	[switch]
 	$InstallDotNet
@@ -176,6 +176,7 @@ param (
 
 #region Preconfigure some static settings
 # Note: Changes in the infrastructure may require reconfiguring these and break scripts deployed without these changes
+
 $SE_occServer = "occ.server-eye.de"
 $SE_apiServer = "api.server-eye.de"
 $SE_configServer = "config.server-eye.de"
@@ -185,8 +186,13 @@ $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
 $SE_vendor = "Vendor.ServerEye"
 $wc= new-object system.net.webclient
-$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
-$wc.Proxy = $WebProxy
+if (($Proxy.gettype()).Name -eq "WebProxy") {
+	$WebProxy = New-Object System.Net.WebProxy($proxy.adresse,$proxy.BypassProxyOnLocal)
+	$wc.Proxy = $WebProxy
+}else {
+	$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+	$wc.Proxy = $WebProxy
+}
 $SE_Version = $wc.DownloadString("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersion")
 
 if ($DeployPath -eq "")
@@ -856,9 +862,16 @@ function Download-SEFile
 	
 	try
 	{
+		
 		$uri = New-Object "System.Uri" "$url"
 		$request = [System.Net.HttpWebRequest]::Create($uri)
-		$request.proxy = $proxy
+		if (($Proxy.gettype()).Name -eq "WebProxy") {
+			$WebProxy = New-Object System.Net.WebProxy($proxy.adresse,$proxy.BypassProxyOnLocal)
+			$request.Proxy = $WebProxy
+		}else {
+			$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+			$request.proxy = $WebProxy
+		}
 		$request.set_Timeout(15000) #15 second timeout
 		$response = $request.GetResponse()
 		$totalLength = [System.Math]::Floor($response.get_ContentLength()/1024)
@@ -887,7 +900,7 @@ function Download-SEFile
 	catch
 	{
 		
-		Write-Log -Message "Error downloading: $Url - Interrupting execution - $($_.Exception.Message)" -EventID 666 -EntryType Error
+		#Write-Log -Message "Error downloading: $Url - Interrupting execution - $($_.Exception.Message)" -EventID 666 -EntryType Error
 		Stop-Execution
 	}
 }

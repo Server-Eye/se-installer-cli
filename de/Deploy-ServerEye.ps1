@@ -168,7 +168,7 @@ param (
 	[switch]
 	$NoExit,
 
-	$proxy,
+	$proxy=$Null,
 
 	[switch]
 	$InstallDotNet
@@ -176,6 +176,7 @@ param (
 
 #region Preconfigure some static settings
 # Note: Changes in the infrastructure may require reconfiguring these and break scripts deployed without these changes
+
 $SE_occServer = "occ.server-eye.de"
 $SE_apiServer = "api.server-eye.de"
 $SE_configServer = "config.server-eye.de"
@@ -185,8 +186,13 @@ $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
 $SE_vendor = "Vendor.ServerEye"
 $wc= new-object system.net.webclient
-$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
-$wc.Proxy = $WebProxy
+if (($Proxy.gettype()).Name -eq "WebProxy") {
+	$WebProxy = New-Object System.Net.WebProxy($proxy.adresse,$proxy.BypassProxyOnLocal)
+	$wc.Proxy = $WebProxy
+}else {
+	$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+	$wc.Proxy = $WebProxy
+}
 $SE_Version = $wc.DownloadString("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersion")
 
 if ($DeployPath -eq "")
@@ -856,9 +862,16 @@ function Download-SEFile
 	
 	try
 	{
+		
 		$uri = New-Object "System.Uri" "$url"
 		$request = [System.Net.HttpWebRequest]::Create($uri)
-		$request.proxy = $proxy
+		if (($Proxy.gettype()).Name -eq "WebProxy") {
+			$WebProxy = New-Object System.Net.WebProxy($proxy.adresse,$proxy.BypassProxyOnLocal)
+			$request.Proxy = $WebProxy
+		}else {
+			$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+			$request.proxy = $WebProxy
+		}
 		$request.set_Timeout(15000) #15 second timeout
 		$response = $request.GetResponse()
 		$totalLength = [System.Math]::Floor($response.get_ContentLength()/1024)
@@ -887,7 +900,7 @@ function Download-SEFile
 	catch
 	{
 		
-		Write-Log -Message "Error downloading: $Url - Interrupting execution - $($_.Exception.Message)" -EventID 666 -EntryType Error
+		#Write-Log -Message "Error downloading: $Url - Interrupting execution - $($_.Exception.Message)" -EventID 666 -EntryType Error
 		Stop-Execution
 	}
 }
@@ -1045,8 +1058,8 @@ while ($false)
 # SIG # Begin signature block
 # MIIknAYJKoZIhvcNAQcCoIIkjTCCJIkCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUKZCA7rYCSnC6CF+32cv+5GoR
-# Ia6ggh+oMIIEhDCCA2ygAwIBAgIQQhrylAmEGR9SCkvGJCanSzANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUZE3Dxz+rLE35aMOrLnSX6w13
+# 4VGggh+oMIIEhDCCA2ygAwIBAgIQQhrylAmEGR9SCkvGJCanSzANBgkqhkiG9w0B
 # AQUFADBvMQswCQYDVQQGEwJTRTEUMBIGA1UEChMLQWRkVHJ1c3QgQUIxJjAkBgNV
 # BAsTHUFkZFRydXN0IEV4dGVybmFsIFRUUCBOZXR3b3JrMSIwIAYDVQQDExlBZGRU
 # cnVzdCBFeHRlcm5hbCBDQSBSb290MB4XDTA1MDYwNzA4MDkxMFoXDTIwMDUzMDEw
@@ -1220,23 +1233,23 @@ while ($false)
 # aXRlZDEkMCIGA1UEAxMbU2VjdGlnbyBSU0EgQ29kZSBTaWduaW5nIENBAhA2Lp3Z
 # BlJp2WChqqlUZAw4MAkGBSsOAwIaBQCgeDAYBgorBgEEAYI3AgEMMQowCKACgACh
 # AoAAMBkGCSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAM
-# BgorBgEEAYI3AgEVMCMGCSqGSIb3DQEJBDEWBBTN3Ld4f1tlv4SknoMoYJHsg15F
-# oTANBgkqhkiG9w0BAQEFAASCAQBWHUZZmJA7in53mrLEkdaOaAhxPKX9gFF2RQmC
-# t2YEMrX+euePHlGQD9mdh4JIBezJH8NigJEY0Lrmg2K60UuaWE71fYQecpQ7O8/d
-# YOeVHxcdDDrjAsOc7jFUnHCHlsCDJQXBB/IIUkBaAVW3JIn7+M8X0HVq/1R2006Y
-# RHAfBJWL61AwKJSo+HeHVNj7m96AMygmfIuUs22ta3T41UGfMT5KgnyHsee4wZ0O
-# cyG/85kYra72brl5MEIciDS03Ic/rFmDJ+U8zkoKw2Vwo/lqok5qaIWTfPzcOur/
-# j7lzqj8wQmjxomsp9Xk5hWTdjarrTaapy0+eQsGQTBDPuMDeoYICKDCCAiQGCSqG
+# BgorBgEEAYI3AgEVMCMGCSqGSIb3DQEJBDEWBBRPtLQzsszjmRk71WL7H/+1f0XR
+# GjANBgkqhkiG9w0BAQEFAASCAQBvQxiSyscseakRlRZ+luIAT1ZsMEUcE/rboCqt
+# vS9GpHEuxqL5Ws2H4QjDQUqI9QIIFf0PPpemc3jjMhX0I4qSrxXFQNaO1VKg9D3N
+# 2BwQ23H3oL3ITz1Q4fCk+KoPMdf8JHCMRPR5sWUysi5Xk9wu1oCBpni5S79TFAy7
+# gp6adgu99pWkfmaEGH+WZBj55lVVXElZQ70sVgqjbQUAlwEWxCS+cRRttQJrSK/D
+# yb8MTkYGkuvA/U4TY12bw3YP3SNz47suvUX+AvGaE/h5vbxa24/1d+3Q3Ol9hDBv
+# UKJ9imBnJjeM5tadQRokr86P6Ks1jXybq5TbCVp7miKnpg/roYICKDCCAiQGCSqG
 # SIb3DQEJBjGCAhUwggIRAgEBMIGOMHoxCzAJBgNVBAYTAkdCMRswGQYDVQQIExJH
 # cmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcTB1NhbGZvcmQxGjAYBgNVBAoTEUNP
 # TU9ETyBDQSBMaW1pdGVkMSAwHgYDVQQDExdDT01PRE8gVGltZSBTdGFtcGluZyBD
 # QQIQK3PbdGMRTFpbMkryMFdySTAJBgUrDgMCGgUAoF0wGAYJKoZIhvcNAQkDMQsG
-# CSqGSIb3DQEHATAcBgkqhkiG9w0BCQUxDxcNMTkwNjA3MDg1ODIzWjAjBgkqhkiG
-# 9w0BCQQxFgQUMa5ArYGdxMjhj/8U4kij1Gq6OrAwDQYJKoZIhvcNAQEBBQAEggEA
-# J4Zahk774jbtnmev456Stc/Jg3atPAQZIgYk1pbTYECRb+x0Y7vh5rfSaKUX9qf4
-# DXGAnc364Arfd2cByE2HEcm0WjErKqag58B/tyiYKlHqqMBXmxQQvXQHRGyOkXi+
-# L5dUq8vk6K9B4ne2G5sufvSZxvVOi0ICqpFecs5pXabnKoIwQ9alDuKEVzPp6RbW
-# HMh+RJMVBNwdv18z+hfqYaBv4ZEOT3jheY8HiW5kn1GpB7C7lNCLRepI0x4BXSAa
-# BnB20HYfmnP7dY/8yf8M8UysvIxtXtq8rL9q9Ta2ovmvOfQwPjH21YWK/HY5PC1A
-# VnCTBfru0uQoFHv+nn3+CQ==
+# CSqGSIb3DQEHATAcBgkqhkiG9w0BCQUxDxcNMTkwODEyMTIzOTE2WjAjBgkqhkiG
+# 9w0BCQQxFgQU0qUk8P6KaoLfB7mHSiYv/tfZnNswDQYJKoZIhvcNAQEBBQAEggEA
+# Ew/puZBFB3E1yUguUoQs2OIHhAcTXFXt0Q3FeR2pnD56VN1bQtsaS3EI10eY+TJq
+# DL/JQ6jg9jhv93f72zmz2hiCkx3Q6cTNVKd/bbqaGBXHZZjFYrW+382w/aMUHAEJ
+# Z9rMLkn6XHhhGnBJy8XfXIIkz6Eqrn5uqAp4oZfivBsWP5aUIHyp/7qFWHIGp+/w
+# BfKkBWD72C3Q/RFrEMzBwgQ3LE7HwQl+RuxVJ0tXz9jtHtAULnVgLJpTPszOSDR4
+# FWakS4bzyzMBPOCm4idLMSn5Mop96xVHcTZcV/qcgWIqZzVftBJIente0VbBP+Lb
+# 0C7/XxVZIfSje9Rh8ZKwVA==
 # SIG # End signature block
