@@ -186,7 +186,10 @@ $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
 $SE_vendor = "Vendor.ServerEye"
 $wc= new-object system.net.webclient
-if (($Proxy.gettype()).Name -eq "WebProxy") {
+if ($Proxy-eq $Null){
+	$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+	$request.proxy = $WebProxy
+}elseif (($Proxy.gettype()).Name -eq "WebProxy") {
 	$WebProxy = New-Object System.Net.WebProxy($proxy.adresse,$proxy.BypassProxyOnLocal)
 	$wc.Proxy = $WebProxy
 }else {
@@ -865,7 +868,10 @@ function Download-SEFile
 		
 		$uri = New-Object "System.Uri" "$url"
 		$request = [System.Net.HttpWebRequest]::Create($uri)
-		if (($Proxy.gettype()).Name -eq "WebProxy") {
+		if ($Proxy-eq $Null){
+			$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+			$request.proxy = $WebProxy
+		}elseif (($Proxy.gettype()).Name -eq "WebProxy") {
 			$WebProxy = New-Object System.Net.WebProxy($proxy.adresse,$proxy.BypassProxyOnLocal)
 			$request.Proxy = $WebProxy
 		}else {

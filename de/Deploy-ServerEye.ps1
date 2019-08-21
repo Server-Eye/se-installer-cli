@@ -186,7 +186,10 @@ $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
 $SE_vendor = "Vendor.ServerEye"
 $wc= new-object system.net.webclient
-if (($Proxy.gettype()).Name -eq "WebProxy") {
+if ($Proxy-eq $Null){
+	$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+	$request.proxy = $WebProxy
+}elseif (($Proxy.gettype()).Name -eq "WebProxy") {
 	$WebProxy = New-Object System.Net.WebProxy($proxy.adresse,$proxy.BypassProxyOnLocal)
 	$wc.Proxy = $WebProxy
 }else {
@@ -865,7 +868,10 @@ function Download-SEFile
 		
 		$uri = New-Object "System.Uri" "$url"
 		$request = [System.Net.HttpWebRequest]::Create($uri)
-		if (($Proxy.gettype()).Name -eq "WebProxy") {
+		if ($Proxy-eq $Null){
+			$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+			$request.proxy = $WebProxy
+		}elseif (($Proxy.gettype()).Name -eq "WebProxy") {
 			$WebProxy = New-Object System.Net.WebProxy($proxy.adresse,$proxy.BypassProxyOnLocal)
 			$request.Proxy = $WebProxy
 		}else {
@@ -1058,8 +1064,8 @@ while ($false)
 # SIG # Begin signature block
 # MIIknAYJKoZIhvcNAQcCoIIkjTCCJIkCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUZE3Dxz+rLE35aMOrLnSX6w13
-# 4VGggh+oMIIEhDCCA2ygAwIBAgIQQhrylAmEGR9SCkvGJCanSzANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUbjO181P5XndQrYHZSPIRgSOq
+# nAqggh+oMIIEhDCCA2ygAwIBAgIQQhrylAmEGR9SCkvGJCanSzANBgkqhkiG9w0B
 # AQUFADBvMQswCQYDVQQGEwJTRTEUMBIGA1UEChMLQWRkVHJ1c3QgQUIxJjAkBgNV
 # BAsTHUFkZFRydXN0IEV4dGVybmFsIFRUUCBOZXR3b3JrMSIwIAYDVQQDExlBZGRU
 # cnVzdCBFeHRlcm5hbCBDQSBSb290MB4XDTA1MDYwNzA4MDkxMFoXDTIwMDUzMDEw
@@ -1233,23 +1239,23 @@ while ($false)
 # aXRlZDEkMCIGA1UEAxMbU2VjdGlnbyBSU0EgQ29kZSBTaWduaW5nIENBAhA2Lp3Z
 # BlJp2WChqqlUZAw4MAkGBSsOAwIaBQCgeDAYBgorBgEEAYI3AgEMMQowCKACgACh
 # AoAAMBkGCSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAM
-# BgorBgEEAYI3AgEVMCMGCSqGSIb3DQEJBDEWBBRPtLQzsszjmRk71WL7H/+1f0XR
-# GjANBgkqhkiG9w0BAQEFAASCAQBvQxiSyscseakRlRZ+luIAT1ZsMEUcE/rboCqt
-# vS9GpHEuxqL5Ws2H4QjDQUqI9QIIFf0PPpemc3jjMhX0I4qSrxXFQNaO1VKg9D3N
-# 2BwQ23H3oL3ITz1Q4fCk+KoPMdf8JHCMRPR5sWUysi5Xk9wu1oCBpni5S79TFAy7
-# gp6adgu99pWkfmaEGH+WZBj55lVVXElZQ70sVgqjbQUAlwEWxCS+cRRttQJrSK/D
-# yb8MTkYGkuvA/U4TY12bw3YP3SNz47suvUX+AvGaE/h5vbxa24/1d+3Q3Ol9hDBv
-# UKJ9imBnJjeM5tadQRokr86P6Ks1jXybq5TbCVp7miKnpg/roYICKDCCAiQGCSqG
+# BgorBgEEAYI3AgEVMCMGCSqGSIb3DQEJBDEWBBR8qpPJlKP+uNYJ/OEMTTmhsHLs
+# rzANBgkqhkiG9w0BAQEFAASCAQChqsmBX5c8NPGkB+XwfbcMLvwCytpEVvNvj9um
+# RJ3z+J00qWvusJJetZGphsP9r1Wg1cb6EobmTJTYLRWosef00LT+Sf/ZuFitbVyC
+# z5QWEvJnDhZZqi6ZzSaj+vRN0mhJBvzNIndTpOeiEM3tKKchl229xw5tcsa8z4cA
+# PfQfNMd1TTxnkQTi8R3jcwZIeIusSlANYbGxPyK9yDexAQTl14U84B0RFWH4SDrk
+# rR/qEWHfbYOUZ7ze39OaTH5tSBIjdYkEp7AwfwsvWnF1LHZl/ujd2i3DPB49okjX
+# uRVP1DxuhCs7QDqeMM4HRUwfwM0378EhRhRp21p+LxPfIpScoYICKDCCAiQGCSqG
 # SIb3DQEJBjGCAhUwggIRAgEBMIGOMHoxCzAJBgNVBAYTAkdCMRswGQYDVQQIExJH
 # cmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcTB1NhbGZvcmQxGjAYBgNVBAoTEUNP
 # TU9ETyBDQSBMaW1pdGVkMSAwHgYDVQQDExdDT01PRE8gVGltZSBTdGFtcGluZyBD
 # QQIQK3PbdGMRTFpbMkryMFdySTAJBgUrDgMCGgUAoF0wGAYJKoZIhvcNAQkDMQsG
-# CSqGSIb3DQEHATAcBgkqhkiG9w0BCQUxDxcNMTkwODEyMTIzOTE2WjAjBgkqhkiG
-# 9w0BCQQxFgQU0qUk8P6KaoLfB7mHSiYv/tfZnNswDQYJKoZIhvcNAQEBBQAEggEA
-# Ew/puZBFB3E1yUguUoQs2OIHhAcTXFXt0Q3FeR2pnD56VN1bQtsaS3EI10eY+TJq
-# DL/JQ6jg9jhv93f72zmz2hiCkx3Q6cTNVKd/bbqaGBXHZZjFYrW+382w/aMUHAEJ
-# Z9rMLkn6XHhhGnBJy8XfXIIkz6Eqrn5uqAp4oZfivBsWP5aUIHyp/7qFWHIGp+/w
-# BfKkBWD72C3Q/RFrEMzBwgQ3LE7HwQl+RuxVJ0tXz9jtHtAULnVgLJpTPszOSDR4
-# FWakS4bzyzMBPOCm4idLMSn5Mop96xVHcTZcV/qcgWIqZzVftBJIente0VbBP+Lb
-# 0C7/XxVZIfSje9Rh8ZKwVA==
+# CSqGSIb3DQEHATAcBgkqhkiG9w0BCQUxDxcNMTkwODIxMTE0MTIzWjAjBgkqhkiG
+# 9w0BCQQxFgQULVLqZtB/VyFb4NPnabGFGuLb2qUwDQYJKoZIhvcNAQEBBQAEggEA
+# insf/rTVagHn0hdvsBNjmxOCcKTW7wtr8FrhPLcMVdeQLhFummUwrJ/bFI1yy5R0
+# n2aB7p9sy7jjJorbfucFDlt+9m4Fm9t/6pC9trVeyMcL8SpUxi27m2nEY0zqDOLW
+# 4FBVgPvGrhbmvk56Hamx/YUD/dTm4pKJRWUup+4UU5Grj7G4TaDDK86UfVyUXU1G
+# n76KS52SYQxEMVRRbPjVxpzHo3r1ztBpCOvqokrc8tskDnJ/jTsR/4ivYzEw/tP9
+# tpfa8MwVwtrCIRPGHBCiuSvImIRqcr8Uv6EnYhKwoQPqvUU+Qc/Qv1sKCiAAGeAa
+# HzNZZ3goXElCv9bgXV3S4A==
 # SIG # End signature block
