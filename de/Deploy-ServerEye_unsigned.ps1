@@ -188,7 +188,7 @@ $SE_vendor = "Vendor.ServerEye"
 $wc= new-object system.net.webclient
 if ($Proxy-eq $Null){
 	$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
-	$request.proxy = $WebProxy
+	$wc.proxy = $WebProxy
 }elseif (($Proxy.gettype()).Name -eq "WebProxy") {
 	$WebProxy = New-Object System.Net.WebProxy($proxy.adresse,$proxy.BypassProxyOnLocal)
 	$wc.Proxy = $WebProxy
