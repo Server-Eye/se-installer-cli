@@ -186,11 +186,10 @@ $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
 $SE_vendor = "Vendor.ServerEye"
 $wc= new-object system.net.webclient
-if ($Proxy-eq $Null){
-	$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
-	$wc.proxy = $WebProxy
+if (!$Proxy){
+    $WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+	$wc.Proxy = $WebProxy
 }elseif (($Proxy.gettype()).Name -eq "WebProxy") {
-	$WebProxy = New-Object System.Net.WebProxy($proxy.adresse,$proxy.BypassProxyOnLocal)
 	$wc.Proxy = $WebProxy
 }else {
 	$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
@@ -868,15 +867,14 @@ function Download-SEFile
 		
 		$uri = New-Object "System.Uri" "$url"
 		$request = [System.Net.HttpWebRequest]::Create($uri)
-		if ($Proxy-eq $Null){
+		if (!$Proxy){
 			$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
-			$request.proxy = $WebProxy
+			$request.Proxy = $WebProxy
 		}elseif (($Proxy.gettype()).Name -eq "WebProxy") {
-			$WebProxy = New-Object System.Net.WebProxy($proxy.adresse,$proxy.BypassProxyOnLocal)
 			$request.Proxy = $WebProxy
 		}else {
 			$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
-			$request.proxy = $WebProxy
+			$request.Proxy = $WebProxy
 		}
 		$request.set_Timeout(15000) #15 second timeout
 		$response = $request.GetResponse()
@@ -1064,8 +1062,8 @@ while ($false)
 # SIG # Begin signature block
 # MIIknAYJKoZIhvcNAQcCoIIkjTCCJIkCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUHC80fSiapf0AvHOjznL7t/6K
-# 75qggh+oMIIEhDCCA2ygAwIBAgIQQhrylAmEGR9SCkvGJCanSzANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUYN+pWsuAyEVmua0P/Nrsd4tr
+# xBeggh+oMIIEhDCCA2ygAwIBAgIQQhrylAmEGR9SCkvGJCanSzANBgkqhkiG9w0B
 # AQUFADBvMQswCQYDVQQGEwJTRTEUMBIGA1UEChMLQWRkVHJ1c3QgQUIxJjAkBgNV
 # BAsTHUFkZFRydXN0IEV4dGVybmFsIFRUUCBOZXR3b3JrMSIwIAYDVQQDExlBZGRU
 # cnVzdCBFeHRlcm5hbCBDQSBSb290MB4XDTA1MDYwNzA4MDkxMFoXDTIwMDUzMDEw
@@ -1239,23 +1237,23 @@ while ($false)
 # aXRlZDEkMCIGA1UEAxMbU2VjdGlnbyBSU0EgQ29kZSBTaWduaW5nIENBAhA2Lp3Z
 # BlJp2WChqqlUZAw4MAkGBSsOAwIaBQCgeDAYBgorBgEEAYI3AgEMMQowCKACgACh
 # AoAAMBkGCSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAM
-# BgorBgEEAYI3AgEVMCMGCSqGSIb3DQEJBDEWBBQM0+QKxAA0S2imJ3BWM7bPep0s
-# 0jANBgkqhkiG9w0BAQEFAASCAQBZWbn97I2Ngw7O3T+0Xc4X94tXWT+G2HTzi7VN
-# HS/fU08/L0dqME4FayUtGj05fZx7Vp/SV2BygG343tewsAiETt/LhtZv3WOKPI6s
-# ZU3I6sbsRFXj8bWZ/xhnb3vsIbVuY561w9pucahBoXQh0ZD5tOEZz8B5dLZE3hNj
-# rOLc5mjdeAtztkbyR8auaitTrXcKWwfDwreWjkIY99WIBrxkUJT3RN+UpmjefjPH
-# Dz82owOrYODao2ozQZKAs9BEVvvSfML3psQ2GpRx9gLOQ1n2aQ4ls5jK4tUPwhjF
-# 6HGLFWMKUFOomCT4ETkuo8dX8lpEjoYWSKjxUyPzkZDFXpDzoYICKDCCAiQGCSqG
+# BgorBgEEAYI3AgEVMCMGCSqGSIb3DQEJBDEWBBRlFz5Hx/uBk3A2p+tQneC2YkL2
+# uzANBgkqhkiG9w0BAQEFAASCAQASZ8i2MH2C2R7g2/gwPEqdNotOcAKFXok1Cj/t
+# KTzvJwN5Pgi7UlQdYANDQlVH40q8RgnBGCeHxcvUAHaFhIj0Nnw4nPyLW4k+WIMx
+# PqyRY7XAzxeMV9ND25izahxrS9FfM2st1Ra9ekIyrruyIUGYs59ZHhoV5mHg2Ke3
+# lhc/3Ssy6iVO/gVAuISPr7dMZSUsKWMms9P9dr/MI4YfQVFmMWZtEDWg8thEEQhS
+# UzMEvc3FO7mdfUTlV9HDW21CCkWWFYjVUn3Tn/kGL9jNs7UOLwNTsyxX6TPBzUDm
+# /NIUx+d+f9Ep5fOwXE+K+hyrW8oFu+XjbdEnw4QM55MHehyWoYICKDCCAiQGCSqG
 # SIb3DQEJBjGCAhUwggIRAgEBMIGOMHoxCzAJBgNVBAYTAkdCMRswGQYDVQQIExJH
 # cmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcTB1NhbGZvcmQxGjAYBgNVBAoTEUNP
 # TU9ETyBDQSBMaW1pdGVkMSAwHgYDVQQDExdDT01PRE8gVGltZSBTdGFtcGluZyBD
 # QQIQK3PbdGMRTFpbMkryMFdySTAJBgUrDgMCGgUAoF0wGAYJKoZIhvcNAQkDMQsG
-# CSqGSIb3DQEHATAcBgkqhkiG9w0BCQUxDxcNMTkwOTAyMDkxNjI2WjAjBgkqhkiG
-# 9w0BCQQxFgQUhFaGoxOiIdfZvpwGJjDEBc6QyOAwDQYJKoZIhvcNAQEBBQAEggEA
-# IOY0v+OLJvXSqSrflO4RxXI7thqbYI2QMAY+feweHZslygctftaVZSwQ7+Yj2UtV
-# HXSYu9A1v2zTfNsRfJM1i4XmeSdRmJtVBqaVyOGKoGoh6gBZA1PO6MsHDD43T4vc
-# sS/EhX1fjWhNZ7pobjZ9RzXAGUy9f0An9SIfwENKuMacPdw+rXTngpDetxYr5iyz
-# qeFHm5h3HjOCuX99WKevLvOdBNYYdaEiAlPR7rZ9H8au3eFnz/NiSdXHLuTOX/us
-# U6sdNolsDND4he8X7GYZPjsj0y/281s2cP3TTMKJ3chrWdLau8fAK3H/WYuvo3rr
-# oSZutYk9y0HKbbEwnR2LiA==
+# CSqGSIb3DQEHATAcBgkqhkiG9w0BCQUxDxcNMTkwOTE5MTM1MzQ3WjAjBgkqhkiG
+# 9w0BCQQxFgQUI/sP5df8rO4jctn/uyes5fdr2ngwDQYJKoZIhvcNAQEBBQAEggEA
+# CfCzqtRNDC2R1L9gOvbc4YlDI3R33g7PyYr16bbXz41qtrCtzot7jwND1mQ/47RY
+# 4+WzsfLWu0jwNtpgoBcTU9cTvipW61joGXDQdLZEhxttV1D06kJprLXkI6qq0pPN
+# 45GZztSVETdEuxndnqna+JmP36o4Hm9nbLK6n/WVGUvpHQL46d+TXRLSE3p9CD7N
+# tmeYdjSXIDuELDT+bX+GCs6EjhJR0Ltvk5oZGGiwurxZZAimpTHeuNjm/CfgNhNm
+# 3KiY8Hkqm4G3eOmdV4emDD0LQ4m/tLo2DnRMmAT9d4+etVvVgdP3QvKa9N/zjydz
+# CowuNqlZq6zJWMj+4DkNiw==
 # SIG # End signature block
