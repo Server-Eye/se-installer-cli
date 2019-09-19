@@ -186,11 +186,10 @@ $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
 $SE_vendor = "Vendor.ServerEye"
 $wc= new-object system.net.webclient
-if ($Proxy-eq $Null){
-	$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
-	$wc.proxy = $WebProxy
+if (!$Proxy){
+    $WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+	$wc.Proxy = $WebProxy
 }elseif (($Proxy.gettype()).Name -eq "WebProxy") {
-	$WebProxy = New-Object System.Net.WebProxy($proxy.adresse,$proxy.BypassProxyOnLocal)
 	$wc.Proxy = $WebProxy
 }else {
 	$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
@@ -868,15 +867,14 @@ function Download-SEFile
 		
 		$uri = New-Object "System.Uri" "$url"
 		$request = [System.Net.HttpWebRequest]::Create($uri)
-		if ($Proxy-eq $Null){
+		if (!$Proxy){
 			$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
-			$request.proxy = $WebProxy
+			$request.Proxy = $WebProxy
 		}elseif (($Proxy.gettype()).Name -eq "WebProxy") {
-			$WebProxy = New-Object System.Net.WebProxy($proxy.adresse,$proxy.BypassProxyOnLocal)
 			$request.Proxy = $WebProxy
 		}else {
 			$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
-			$request.proxy = $WebProxy
+			$request.Proxy = $WebProxy
 		}
 		$request.set_Timeout(15000) #15 second timeout
 		$response = $request.GetResponse()
