@@ -102,11 +102,11 @@
 	.LINK
 		https://github.com/Server-Eye/se-installer-cli
 #>
-
 #Requires -Version 2
 
-[CmdletBinding(DefaultParameterSetName = 'None')]
-param (
+
+[CmdletBinding(DefaultParameterSetName ='None')]
+param(
 	[switch]
 	$Install,
 	
@@ -186,15 +186,7 @@ $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
 $SE_vendor = "Vendor.ServerEye"
 $wc= new-object system.net.webclient
-if (!$Proxy){
-    $WebProxy = New-Object System.Net.WebProxy($proxy,$true)
-	$wc.Proxy = $WebProxy
-}elseif (($Proxy.gettype()).Name -eq "WebProxy") {
-	$wc.Proxy = $WebProxy
-}else {
-	$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
-	$wc.Proxy = $WebProxy
-}
+
 $SE_Version = $wc.DownloadString("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersion")
 
 if ($DeployPath -eq "")

@@ -102,11 +102,11 @@
 	.LINK
 		https://github.com/Server-Eye/se-installer-cli
 #>
-
 #Requires -Version 2
 
-[CmdletBinding(DefaultParameterSetName = 'None')]
-param (
+
+[CmdletBinding(DefaultParameterSetName ='None')]
+param(
 	[switch]
 	$Install,
 	
@@ -186,15 +186,7 @@ $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
 $SE_vendor = "Vendor.ServerEye"
 $wc= new-object system.net.webclient
-if (!$Proxy){
-    $WebProxy = New-Object System.Net.WebProxy($proxy,$true)
-	$wc.Proxy = $WebProxy
-}elseif (($Proxy.gettype()).Name -eq "WebProxy") {
-	$wc.Proxy = $WebProxy
-}else {
-	$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
-	$wc.Proxy = $WebProxy
-}
+
 $SE_Version = $wc.DownloadString("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersion")
 
 if ($DeployPath -eq "")
@@ -1062,8 +1054,8 @@ while ($false)
 # SIG # Begin signature block
 # MIIknAYJKoZIhvcNAQcCoIIkjTCCJIkCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUYN+pWsuAyEVmua0P/Nrsd4tr
-# xBeggh+oMIIEhDCCA2ygAwIBAgIQQhrylAmEGR9SCkvGJCanSzANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQU2sAIrh5lopyzUn0Rkvfr35Gq
+# Yxmggh+oMIIEhDCCA2ygAwIBAgIQQhrylAmEGR9SCkvGJCanSzANBgkqhkiG9w0B
 # AQUFADBvMQswCQYDVQQGEwJTRTEUMBIGA1UEChMLQWRkVHJ1c3QgQUIxJjAkBgNV
 # BAsTHUFkZFRydXN0IEV4dGVybmFsIFRUUCBOZXR3b3JrMSIwIAYDVQQDExlBZGRU
 # cnVzdCBFeHRlcm5hbCBDQSBSb290MB4XDTA1MDYwNzA4MDkxMFoXDTIwMDUzMDEw
@@ -1237,23 +1229,23 @@ while ($false)
 # aXRlZDEkMCIGA1UEAxMbU2VjdGlnbyBSU0EgQ29kZSBTaWduaW5nIENBAhA2Lp3Z
 # BlJp2WChqqlUZAw4MAkGBSsOAwIaBQCgeDAYBgorBgEEAYI3AgEMMQowCKACgACh
 # AoAAMBkGCSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAM
-# BgorBgEEAYI3AgEVMCMGCSqGSIb3DQEJBDEWBBRlFz5Hx/uBk3A2p+tQneC2YkL2
-# uzANBgkqhkiG9w0BAQEFAASCAQASZ8i2MH2C2R7g2/gwPEqdNotOcAKFXok1Cj/t
-# KTzvJwN5Pgi7UlQdYANDQlVH40q8RgnBGCeHxcvUAHaFhIj0Nnw4nPyLW4k+WIMx
-# PqyRY7XAzxeMV9ND25izahxrS9FfM2st1Ra9ekIyrruyIUGYs59ZHhoV5mHg2Ke3
-# lhc/3Ssy6iVO/gVAuISPr7dMZSUsKWMms9P9dr/MI4YfQVFmMWZtEDWg8thEEQhS
-# UzMEvc3FO7mdfUTlV9HDW21CCkWWFYjVUn3Tn/kGL9jNs7UOLwNTsyxX6TPBzUDm
-# /NIUx+d+f9Ep5fOwXE+K+hyrW8oFu+XjbdEnw4QM55MHehyWoYICKDCCAiQGCSqG
+# BgorBgEEAYI3AgEVMCMGCSqGSIb3DQEJBDEWBBSkmMraK1tFayMkusQnxP70J5WJ
+# ezANBgkqhkiG9w0BAQEFAASCAQA5/H4Q2T2JXj3ISEjmzF4lBAabpx+lqKVjH1iy
+# GG4CvcjbGE5zlKooYdORjgkLtue5X4stnl31ImAJ/IgGMQUh2L0BxmW3aUGXYibc
+# 8dBeMPMslc6oCsL5vQZSLOcoG6pq+uPaxgDjqwFK+LaYZekuTVxYvgy6qhXnCwfH
+# onLREzlPxVK/p+cBqebNynWZciBReCfIracmcd41bG3BfCOSAFDBVg4/kxBZxY6w
+# mf444777Eu2IYvGj/A6R4nYjDF+rTT0TIGfslFlIpRK0CWTXwjo/AKDUerrCCWYr
+# Fd2+OVva+3U/CLDR1NINs7MrohnA1Zl42faP1GLQLEFm7JcGoYICKDCCAiQGCSqG
 # SIb3DQEJBjGCAhUwggIRAgEBMIGOMHoxCzAJBgNVBAYTAkdCMRswGQYDVQQIExJH
 # cmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcTB1NhbGZvcmQxGjAYBgNVBAoTEUNP
 # TU9ETyBDQSBMaW1pdGVkMSAwHgYDVQQDExdDT01PRE8gVGltZSBTdGFtcGluZyBD
 # QQIQK3PbdGMRTFpbMkryMFdySTAJBgUrDgMCGgUAoF0wGAYJKoZIhvcNAQkDMQsG
-# CSqGSIb3DQEHATAcBgkqhkiG9w0BCQUxDxcNMTkwOTI2MDcyMDU3WjAjBgkqhkiG
-# 9w0BCQQxFgQUI/sP5df8rO4jctn/uyes5fdr2ngwDQYJKoZIhvcNAQEBBQAEggEA
-# uwpELHrQU9FE3uMYqJeXlc21g9FGrrxzXTNNrucVWVxp0ghBzdgMzbZqXnTenJem
-# EC67oZCeh6evZLo++QVesRXrkzCuC3dqVNCr+Tfs0oDphD8pL9veXklDcOgZUIXR
-# tMVa4H+tG3OdfnsECGu9XNsu1FXtq7q6fiwrnTxjnVPapIdD19pq5T45zc4quh/i
-# PW1AGkIBUL5EcQhMKuNsQNSICLDGF/UWdhEMnW/BDmUgNRc0sHQ3c8g7txlDK8+J
-# LxaKFW5W1ip4qwIPoKH9AR0mc7ha7eWVFRpfh3IZxoSNhNHH6Z7qzSPKa2lq3RnX
-# yIMshN1vxOQrU/AqJ8umKQ==
+# CSqGSIb3DQEHATAcBgkqhkiG9w0BCQUxDxcNMTkwOTI3MTIyNTMwWjAjBgkqhkiG
+# 9w0BCQQxFgQU7RZniowJ4EuAFTfdcaZMRJ2JA/UwDQYJKoZIhvcNAQEBBQAEggEA
+# OYsxdMf7+Fxw+iltnQVyBaQSp8tMjB1f+WfOAsa9BR4xsGOX0yOi0T6EKaaA3EjN
+# 1APj5rzFDah+HEa8fM8A7cO758AVuNkM3WgPP19+C8fyrn50O5L3R0f0I3kvv69E
+# vvxIsU18FK9jw+uHIFZxY/NHIhEjllb0aL0UaVdGiRPRqnUHVzJI/z714E4HYJkF
+# PQ9ssby2nZdG+djUbEDhnL5svcs2r+cA7jI3Ot5usIOyHSGpOmAup7X7dYLvXX2i
+# rijPtgHffkpT9YKzsAA+Xe/DmyNFLXR+U2lK0fqmUz6sgsI7m0dXOWD1uuFcG8P1
+# wQWQFgI/GelWZhZdDeNcRg==
 # SIG # End signature block
