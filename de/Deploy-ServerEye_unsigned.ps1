@@ -610,6 +610,15 @@ function Apply-Template
 	try
 	{
 		$WebRequest = [System.Net.WebRequest]::Create($url)
+		if (!$Proxy){
+			$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+			$WebRequest.Proxy = $WebProxy
+		}elseif (($Proxy.gettype()).Name -eq "WebProxy") {
+			$WebRequest.Proxy = $WebProxy
+		}else {
+			$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+			$WebRequest.Proxy = $WebProxy
+		}
 		$WebRequest.Method = "POST"
 		$WebRequest.Headers.Add("x-api-key", $apiKey)
 		$WebRequest.ContentType = "application/json"
