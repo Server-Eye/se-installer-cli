@@ -648,7 +648,7 @@ function Get-SensorHubId
 	
 	$pattern = '\bguid=\b'
 	
-	$i = 180
+	$i = 1200
 	Write-Log "Waiting for SensorHub GUID (max wait $i seconds)" -EventID 102 -Silent $Silent
 	
 	while ((-not ($guidFound = Select-String -Quiet -Path $ConfigFileCC -Pattern $pattern)) -and ($i -gt 0))
