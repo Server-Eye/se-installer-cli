@@ -5,34 +5,69 @@
 # Author: Rene Thulke
 #
 # Weitere Informationen zu diesem Skript finden Sie hier:
-# https://servereye.freshdesk.com/support/solutions/articles/14000062437
+# https://servereye.freshdesk.com/support/solutions/articles/14000113669
+
+Param ( 
+    [Parameter()] 
+    [Switch]$OCCConnector
+)
+
 
 # Die folgenden Werte muessen angepasst werden
 $customer = ""
 $templateid = ""
 $apikey = ""
 $parentGuid = ""
-$ServerName = ""
-$remoteLog = "\\$ServerName\se_install\$env:computername.txt" 
-$logdatei = "C:\ProgramData\ServerEye3\logs\installer.log"
+$SharedFolder = "" 
 # Proxy if needed etc. "http://10.50.2.30:8080"
-$proxy = $null
+$proxy = ""
 
 #
 # Aendern Sie bitte nichts unterhalb dieser Zeile
 #
 
-# Download der aktuellen Version
-$WebClient = New-Object System.Net.WebClient
-$WebProxy = New-Object System.Net.WebProxy($proxy, $true)
-$WebClient.Proxy = $WebProxy
-$WebClient.DownloadFile("https://update.server-eye.de/download/se/ServerEyeSetup.exe", "$env:windir\temp\ServerEyeSetup.exe")
 
-$arguments = "ARGUMENTS=install --cID $parentGuid --customerID $customer --apiKey $apikey --silent true"
+
+# Download der aktuellen Version
+if (!(Test-Path $env:TEMP\ServerEyeSetup.exe)) {
+    $WebClient = New-Object System.Net.WebClient
+    if ($proxy) {
+        $WebProxy = New-Object System.Net.WebProxy($proxy, $true)
+        $WebClient.Proxy = $WebProxy 
+    }
+    $WebClient.DownloadFile("https://update.server-eye.de/download/se/ServerEyeSetup.exe", "$env:TEMP\ServerEyeSetup.exe")
+}
+#Erstellen der Prozess Argument
+#region Arguments
+if ($OCCConnector) {
+    $startProcessParams = @{
+        FilePath               = "$env:TEMP\ServerEyeSetup.exe"
+        ArgumentList           = '"ARGUMENTS=newConnector --customerID=' + $customer + ' --apiKey=' + $apikey + ' --silent=true"' + " /quiet"
+        Wait                   = $true;
+        NoNewWindow            = $true;
+    } 
+}
+else {
+    $startProcessParams = @{
+        FilePath               = "$env:TEMP\ServerEyeSetup.exe"
+        ArgumentList           = '"ARGUMENTS=install --cID=' + $parentGuid + ' --customerID=' + $customer + ' --apiKey=' + $apikey + ' --silent=true"' + " /quiet"
+        Wait                   = $true;
+        NoNewWindow            = $true;
+    }
+}
+#endregion Arguments
+
 
 # Installation Server-Eye
-Set-Location "$env:windir\temp"
+if (!(Test-Path 'C:\Program Files (x86)\Server-Eye\ers\EmergencyAction.exe')) {
+    Start-Process @startProcessParams
 
-.\ServerEyeSetup.exe $arguments /quiet
-
-Copy-Item $logdatei $remoteLog 
+    $SEInstallLog = Get-ChildItem -Path $env:ProgramData\ServerEye3\logs\ -Filter installer.log
+    $MSILog = Get-ChildItem -Path $env:TEMP -Filter Server-Eye_*
+    $remoteLog = "$SharedFolder\$env:computername.zip"
+    
+    Compress-Archive -Path $SEInstallLog -DestinationPath $remoteLog  -CompressionLevel Fastest -Update
+    foreach ($log in $MSILog) {
+        Compress-Archive -Path $log.FullName -DestinationPath $remoteLog  -CompressionLevel Fastest -Update
+    } 
+}
