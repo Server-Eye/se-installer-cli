@@ -12,8 +12,13 @@
 #>
 
 Param ( 
-    [Parameter()] 
-    [String]$Apikey 
+    [Parameter(Mandatory= $false,
+    HelpMessage = "To Remove Sensorhubs set this API Key")] 
+    [String]$Apikey,
+
+    [Parameter(Mandatory = $false,
+    HelpMessage = "Set as Parameter if OCC-Connector should be removed if present")] 
+    [switch] $OCCConnector      
 )
 
 $services = Get-Service -DisplayName Server-Eye* | Where-Object Status -EQ "Running"
@@ -26,9 +31,17 @@ if ($services) {
 if ((Test-Path "C:\Program Files (x86)\Server-Eye") -eq $true) {
     if ($Apikey) {
         try {
-            $CId = (Get-Content 'C:\Program Files (x86)\Server-Eye\config\se3_cc.conf' | Select-String -Pattern "\bguid=\b").ToString().Replace("guid=","")
-            Invoke-RestMethod -Uri "https://api.server-eye.de/2/container/$CId" -Method Delete -Headers @{"x-api-key"=$Apikey}
-            Write-Output "Sensorhub was removed" 
+            If(Test-Path 'C:\Program Files (x86)\Server-Eye\config\se3_cc.conf'){
+                $CId = (Get-Content 'C:\Program Files (x86)\Server-Eye\config\se3_cc.conf' | Select-String -Pattern "\bguid=\b").ToString().Replace("guid=","")
+                Invoke-RestMethod -Uri "https://api.server-eye.de/2/container/$CId" -Method Delete -Headers @{"x-api-key"=$Apikey}
+                Write-Output "Sensorhub was removed" 
+            }
+            If((Test-Path 'C:\Program Files (x86)\Server-Eye\config\se3_mac.conf') -and ($OCCConnector){
+                $MACId = (Get-Content 'C:\Program Files (x86)\Server-Eye\config\se3_mac.conf' | Select-String -Pattern "\bguid=\b").ToString().Replace("guid=","")
+                Invoke-RestMethod -Uri "https://api.server-eye.de/2/container/$MACId" -Method Delete -Headers @{"x-api-key"=$Apikey}
+                Write-Output "OCC-Connector was removed" 
+            }
+
         }
         catch {
             Write-Output "Error: $_"
@@ -59,9 +72,17 @@ if ((Test-Path "C:\Program Files (x86)\Server-Eye") -eq $true) {
 elseif (((Test-Path "C:\ProgramData\ServerEye3") -eq $true)) {
     if ($Apikey) {
         try {
-            $CId = (Get-Content 'C:\ProgramData\ServerEye3\se3_cc.conf'| Select-String -Pattern "\bguid=\b").ToString().Replace("guid=","")
-            Invoke-RestMethod -Uri "https://api.server-eye.de/2/container/$CId" -Method Delete -Headers @{"x-api-key"=$Apikey}
-            Write-Output "Sensorhub was removed"
+            if (Test-Path C:\ProgramData\ServerEye3\se3_cc.conf) {
+                $CId = (Get-Content 'C:\ProgramData\ServerEye3\se3_cc.conf'| Select-String -Pattern "\bguid=\b").ToString().Replace("guid=","")
+                Invoke-RestMethod -Uri "https://api.server-eye.de/2/container/$CId" -Method Delete -Headers @{"x-api-key"=$Apikey}
+                Write-Output "Sensorhub was removed"
+            }
+            if ((Test-Path C:\ProgramData\ServerEye3\se3_mac.conf) -and ($OCCConnector)) {
+                $MACId = (Get-Content 'C:\ProgramData\ServerEye3\se3_cc.conf'| Select-String -Pattern "\bguid=\b").ToString().Replace("guid=","")
+                Invoke-RestMethod -Uri "https://api.server-eye.de/2/container/$MACId" -Method Delete -Headers @{"x-api-key"=$Apikey}
+                Write-Output "OCC-Connector was removed"
+            }
+
         }
         catch {
             Write-Output "Error: $_"
