@@ -29,7 +29,7 @@ Param (
 
 
 #region Register Eventlog Source
-try { New-EventLog -Source "Server-Eye-Installation" -LogName "Application" -ErrorAction Stop | Out-Null }
+try { New-EventLog -Source $EventSourceName -LogName $EventLogName -ErrorAction Stop | Out-Null }
 catch { }
 #endregion Register Eventlog Source
 
@@ -44,13 +44,20 @@ if ($services) {
 #region Internal Variables
 $CCConf = "se3_cc.conf"
 $MACConf = "se3_mac.conf"
+$EventLogName = "Application"
+$EventSourceName = "Server-Eye-Installation"
 $SEDataPath = "$env:ProgramData\ServerEye3"
 if ($env:PROCESSOR_ARCHITECTURE -eq "x86") {
     $SEInstPath = "$env:ProgramFiles\Server-Eye"
-}else {
+}
+else {
     $SEInstPath = "${env:ProgramFiles(x86)}\Server-Eye"
 }
 $SEConfigFolder = "config"
+$ARRegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Safer\CodeIdentifiers"
+$AROn = "0"
+$AROff = "262144"
+$ARRegProperty = "DefaultLevel"
 
 #endregion Internal Variables
 
@@ -213,47 +220,72 @@ Function Find-ContainerID {
 }
 #endregion FindContainerID
 
+#region SEAntiRansom
+Function Remove-SEAntiRansom {
+    [cmdletbinding(
+    )]
+    Param (
+        [Parameter(Mandatory = $true)]
+        $Path,
+        [Parameter(Mandatory = $true)]
+        $On,
+        [Parameter(Mandatory = $true)]
+        $Off,
+        [Parameter(Mandatory = $true)]
+        $Property
+
+    )
+    If ((Get-ItemPropertyValue -Path $Path -Name DefaultLevel) -eq $On) {
+        Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3004 -EntryType Information -Message "Remove Server-Eye Anti-Ransom"
+        Set-ItemProperty -Path $ARRegPath -Name $Property -Value $Off
+    }
+
+}
+#endregion SEAntiRansom
+
 #endregion Helper Function
 
 if ((Test-Path $SEInstPath) -eq $true) {
+    Remove-SEAntiRansom -Path $ARRegPath -On $AROn -Off $AROff -Property $ARRegProperty 
     #region Remove Container via InstPath Config
     if ($Apikey) {
         try {
             If ((Test-Path "$SEInstPath\$SEConfigFolder\$MACConf") -and ($OCCConnector -ne 0)) {
                 $MACId = Find-ContainerID -Path "$SEInstPath\$SEConfigFolder\$MACConf"
                 Remove-Container -AuthToken $Apikey -id $MACId
-                Write-EventLog -LogName "Application" -Source "Server-Eye-Installation" -EventID 3001 -EntryType Information -Message "OCC-Connector was removed" 
+                Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3001 -EntryType Information -Message "OCC-Connector was removed" 
                 Write-Output "OCC-Connector was removed" 
-            }elseIf (Test-Path "$SEInstPath\$SEConfigFolder\$CCConf") {
+            }
+            elseIf (Test-Path "$SEInstPath\$SEConfigFolder\$CCConf") {
                 $CId = Find-ContainerID -Path "$SEInstPath\$SEConfigFolder\$CCConf"
                 Remove-Container -AuthToken $Apikey -id $CId
-                Write-EventLog -LogName "Application" -Source "Server-Eye-Installation" -EventID 3001 -EntryType Information -Message "Sensorhub was removed."
+                Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3001 -EntryType Information -Message "Sensorhub was removed."
                 Write-Output "Sensorhub was removed" 
             }
 
 
         }
         catch {
-            Write-EventLog -LogName "Application" -Source "Server-Eye-Installation" -EventID 3010 -EntryType Error -Message "Error: $_"
+            Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3010 -EntryType Error -Message "Error: $_"
             Write-Output "Error: $_"
         }
         
     }
     #endregion Remove Container via InstPath Config
     try {
-        Write-EventLog -LogName "Application" -Source "Server-Eye-Installation" -EventID 3000 -EntryType Information -Message "Server-Eye Installation found."
+        Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3000 -EntryType Information -Message "Server-Eye Installation found."
         $progs = Get-ItemProperty HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*
         $sesetup = $progs | Where-Object { ($_.Displayname -eq "Server-Eye") -and ($_.QuietUninstallString -like '"C:\ProgramData\Package Cache\*\ServerEyeSetup.exe" /uninstall /quiet') }
         $sevendors = $progs | Where-Object { ($_.Displayname -eq "Server-Eye Vendor Package") }
         $seservereye = $progs | Where-Object { ($_.Displayname -eq "Server-Eye") }
         if ($sesetup) {
-            Write-EventLog -LogName "Application" -Source "Server-Eye-Installation" -EventID 3002 -EntryType Information -Message "Performing uninstallation of Server-Eye via Setup"
+            Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3002 -EntryType Information -Message "Performing uninstallation of Server-Eye via Setup"
             Write-Output "Performing uninstallation of Server-Eye via Setup"
             Start-Process -FilePath $sesetup.BundleCachePath -Wait -ArgumentList "/uninstall /quiet"
             Remove-LocalFiles -Path $SEDataPath
         }
         elseif ($sevendors) {
-            Write-EventLog -LogName "Application" -Source "Server-Eye-Installation" -EventID 3003 -EntryType Information -Message "Performing uninstallation of Server-Eye via MSI"
+            Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3003 -EntryType Information -Message "Performing uninstallation of Server-Eye via MSI"
             Write-Output "Performing uninstallation of Server-Eye via MSI"
             foreach ($sevendor in $sevendors) {
                 $sechildname = $sevendor.pschildname
@@ -270,31 +302,33 @@ if ((Test-Path $SEInstPath) -eq $true) {
         }
     }
     catch {
-        Write-EventLog -LogName "Application" -Source "Server-Eye-Installation" -EventID 3010 -EntryType Error -Message "Error: $_"
+        Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3010 -EntryType Error -Message "Error: $_"
         Write-Output "Error: $_"
     }
 
 }
 elseif (((Test-Path $SEDataPath) -eq $true)) {
+    Remove-SEAntiRansom -Path $ARRegPath -On $AROn -Off $AROff -Property $ARRegProperty 
     #region Remove Container via DataPath Config
     if ($Apikey) {
         try {
             if ((Test-Path "$SEDataPath\$MACConf") -and ($OCCConnector -ne 0)) {
                 $MACId = Find-ContainerID "$SEDataPath\$MACConf"
                 Remove-Container -AuthToken $Apikey -id $MACId
-                Write-EventLog -LogName "Application" -Source "Server-Eye-Installation" -EventID 3001 -EntryType Information -Message "OCC-Connector was removed" 
+                Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3001 -EntryType Information -Message "OCC-Connector was removed" 
                 Write-Output "OCC-Connector was removed"
-            }elseif (Test-Path "$SEDataPath\$CCConf") {
+            }
+            elseif (Test-Path "$SEDataPath\$CCConf") {
                 $CId = Find-ContainerID -Path "$SEDataPath\$CCConf"
                 Remove-Container -AuthToken $Apikey -id $CId
-                Write-EventLog -LogName "Application" -Source "Server-Eye-Installation" -EventID 3001 -EntryType Information -Message "Sensorhub was removed."
+                Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3001 -EntryType Information -Message "Sensorhub was removed."
                 Write-Output "Sensorhub was removed"
             }
 
 
         }
         catch {
-            Write-EventLog -LogName "Application" -Source "Server-Eye-Installation" -EventID 3010 -EntryType Error -Message "Error: $_"
+            Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3010 -EntryType Error -Message "Error: $_"
             Write-Output "Error: $_"
         }
         
@@ -309,7 +343,7 @@ elseif (((Test-Path $SEDataPath) -eq $true)) {
         }
     }
     catch {
-        Write-EventLog -LogName "Application" -Source "Server-Eye-Installation" -EventID 3010 -EntryType Error -Message "Error: $_"
+        Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3010 -EntryType Error -Message "Error: $_"
         Write-Output "Error: $_" 
     }
 
