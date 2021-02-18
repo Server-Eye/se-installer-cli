@@ -15,7 +15,10 @@ $parentGuid=""
 $logdatei="c:\se_install_log.txt"
 $remoteLog="\\fileserver\se_install\$env:computername.txt"
 # Proxy if needed etc. "http://10.50.2.30:8080"
-$proxy = $null
+$proxy = ""
+$proxyuser = ""
+$proxyPassword = ""
+$proxyDomain = ""
 # Ändern auf $true wenn keine Log bei bestehender Installtion gewünscht sind
 $noinstallLog = $false
 
@@ -26,6 +29,9 @@ $noinstallLog = $false
 # Download der aktuellen Version
 $WebClient = New-Object System.Net.WebClient
 $WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+if ($proxyuser) {
+    $WebProxy.Credentials = new-object System.Net.NetworkCredential($proxyuser, $proxyPassword)
+}
 $WebClient.Proxy = $WebProxy
 $WebClient.DownloadFile("https://occ.server-eye.de/download/se/Deploy-ServerEye.ps1","$env:windir\temp\ServerEye.ps1")
 
