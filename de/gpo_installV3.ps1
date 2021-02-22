@@ -101,6 +101,12 @@ else {
     Write-Debug "Argument for Sensorhub"
     $Install = "install --cID={0}" -f $parentGuid
 }
+#WIP
+if ($templateid) {
+    $template = " --templateID={0}" -f $templateid
+}else {
+    $template = $null
+}
 if ($proxyIP) {
     Write-Debug "Argument with Proxy URL"
     $Proxy = " --proxyUrl={0} --proxyPort={1}" -f $proxyIP, $proxyport
@@ -116,7 +122,7 @@ if ($proxyIP) {
 else {
     $proxy = $null
 }
-$argument = '"ARGUMENTS={0} --customerID={1} --apiKey={2}{3} --silent=true" "/quiet"' -f $Install, $customerID, $apikey, $Proxy
+$argument = '"ARGUMENTS={0} --customerID={1} --apiKey={2} --silent=true{3}{4}" "/quiet"' -f $Install, $customerID, $apikey, $template, $Proxy
 $startProcessParams = @{
     FilePath     = $SetupPath
     ArgumentList = $argument       
@@ -159,6 +165,3 @@ else {
     Copy-Item $SEInstallLog $remoteLog 
     Write-Debug "Collecting Logs, Server-Eye inst finished"
 }
-
-
-check_linux_stats.pl
