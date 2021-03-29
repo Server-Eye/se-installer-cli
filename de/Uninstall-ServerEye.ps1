@@ -45,7 +45,7 @@ if ($services) {
 $CCConf = "se3_cc.conf"
 $MACConf = "se3_mac.conf"
 $EventLogName = "Application"
-$EventSourceName = "Server-Eye-Installation"
+$EventSourceName = "ServerEye-Custom"
 $SEDataPath = "$env:ProgramData\ServerEye3"
 if ($env:PROCESSOR_ARCHITECTURE -eq "x86") {
     $SEInstPath = "$env:ProgramFiles\Server-Eye"
