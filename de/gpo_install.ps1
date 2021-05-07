@@ -15,10 +15,10 @@ $parentGuid=""
 $logdatei="c:\se_install_log.txt"
 $remoteLog="\\fileserver\se_install\$env:computername.txt"
 # Proxy if needed etc. "http://10.50.2.30:8080"
-$proxy = ""
-$proxyuser = ""
-$proxyPassword = ""
-$proxyDomain = ""
+$proxy = $null
+$proxyuser = $null
+$proxyPassword = $null
+$proxyDomain = $null
 # Ändern auf $true wenn keine Log bei bestehender Installtion gewünscht sind
 $noinstallLog = $false
 
