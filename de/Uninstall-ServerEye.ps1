@@ -58,7 +58,9 @@ $ARRegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Safer\CodeIdentifiers"
 $AROn = "0"
 $AROff = "262144"
 $ARRegProperty = "DefaultLevel"
-
+$SETasksName = "Server-Eye Tasks"
+$WinTasksPath = "C:\Windows\System32\Tasks"
+$SETasksPath = Join-Path -Path $WinTasksPath -ChildPath $SETasksName
 #endregion Internal Variables
 
 #region Helper Function
@@ -179,6 +181,30 @@ Function Remove-Container {
 }
 #endregion RemoveContainer
 
+#region RemoveScheduledTask
+Function Remove-ScheduledTask {
+    [cmdletbinding(
+    )]
+    Param (
+        [Parameter(Mandatory = $true)]
+        $task
+    )
+    Unregister-ScheduledTask -Confirm:$false -InputObject $task
+}
+#endregion RemoveScheduledTask
+
+#region RemoveScheduledTaskFolder
+Function Remove-ScheduledTaskFolder {
+    [cmdletbinding(
+    )]
+    Param (
+        [Parameter(Mandatory = $true)]
+        $Folder
+    )
+    Remove-Item -Path $Folder -Recurse -Force
+}
+#endregion RemoveScheduledTaskFolder
+
 #region RemoveLocalFiles
 Function Remove-LocalFiles {
     [cmdletbinding(
@@ -205,6 +231,52 @@ Function Remove-LocalFiles {
     }
 }
 #endregion RemoveLocalFiles
+
+#region RemoveSmartUpdates
+Function Remove-SESU {
+    [CmdletBinding()]
+    Param(
+    )
+    
+    $PSINIFilePAth = "C:\Windows\System32\GroupPolicy\Machine\Scripts"
+    $PSINIFileName = "scripts.ini"
+    $TriggerPatchRun = "C:\Program Files (x86)\Server-Eye\triggerPatchRun.cmd"
+    $PSINIPath = Join-Path -Path $PSINIFilePAth -ChildPath $PSINIFileName
+    
+    $PSINIRegPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Shutdown\0"
+    
+    $Keys = Get-ChildItem -Path $PSINIRegPath
+    $KeyToRemove = Get-ItemProperty -Path $keys.PSPath -Name "Script" | Where-Object -Property Script -EQ -Value $TriggerPatchRun
+    #region INI
+    
+    if (Test-Path $PSINIPath) {
+        Write-Verbose "Checking $PSINIFileName File for SU Script"
+        $content = Get-Content $PSINIPath
+        $string = $content | Select-String -Pattern "triggerPatchRun.cmd"
+        if ($string) {
+            $SetNumber = ($string.ToString()).Substring(0, 1)
+            Write-Verbose "Remove Lines form File"
+            $content | Select-String -Pattern $SetNumber -NotMatch | Set-Content -Path $PSINIPath 
+        }
+        else {
+            Write-Verbose "No Lines in File"
+        }
+    
+        
+    
+    }
+    #endregion INI
+    
+    #region Reg
+    if (Test-Path $KeyToRemove.PSPath) {
+        Write-Verbose "Remove Linies form Registry"
+        Remove-Item $KeyToRemove.PSPath
+    }
+    #endregion Reg
+    Write-Verbose "Call GPUpdate"
+    gpupdate.exe /force
+}
+#endregion RemoveSmartUpdates
 
 #region FindContainerID
 Function Find-ContainerID {
@@ -244,7 +316,7 @@ Function Remove-SEAntiRansom {
 #endregion SEAntiRansom
 
 #endregion Helper Function
-
+#region Uninstall
 if ((Test-Path $SEInstPath) -eq $true) {
     Remove-SEAntiRansom -Path $ARRegPath -On $AROn -Off $AROff -Property $ARRegProperty 
     #region Remove Container via InstPath Config
@@ -282,7 +354,7 @@ if ((Test-Path $SEInstPath) -eq $true) {
             Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3002 -EntryType Information -Message "Performing uninstallation of Server-Eye via Setup"
             Write-Output "Performing uninstallation of Server-Eye via Setup"
             Start-Process -FilePath $sesetup.BundleCachePath -Wait -ArgumentList "/uninstall /quiet"
-            Remove-LocalFiles -Path $SEDataPath
+            
         }
         elseif ($sevendors) {
             Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3003 -EntryType Information -Message "Performing uninstallation of Server-Eye via MSI"
@@ -293,13 +365,18 @@ if ((Test-Path $SEInstPath) -eq $true) {
             }  
             $sechildname = $seservereye.pschildname
             Start-Process msiexec.exe -Wait -ArgumentList "/x $sechildname /q"
-            Remove-LocalFiles -Path $SEDataPath
-            $SETasks = Get-ScheduledTask -TaskPath "\Server-Eye Tasks\" -ErrorAction SilentlyContinue
-            if ($SETasks) {
-                Write-Output "Remove all Server-Eye Scheduled Tasks" 
-                Unregister-ScheduledTask -InputObject $SETasks -Confirm:$false
+
+        }
+        Remove-LocalFiles -Path $SEDataPath
+        $SETasks = Get-ScheduledTask -TaskPath "\Server-Eye Tasks\" -ErrorAction SilentlyContinue
+        if ($SETasks) {
+            Write-Output "Remove all Server-Eye Scheduled Tasks" 
+            Unregister-ScheduledTask -InputObject $SETasks -Confirm:$false
+            if ((Test-Path $SETasksPath) -eq $true) {
+                Remove-ScheduledTaskFolder -Folder $SETasksPath
             }
         }
+        Remove-SESU
     }
     catch {
         Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3010 -EntryType Error -Message "Error: $_"
@@ -307,6 +384,8 @@ if ((Test-Path $SEInstPath) -eq $true) {
     }
 
 }
+#endregion Uninstall
+#region RemoveSEDataOnly
 elseif (((Test-Path $SEDataPath) -eq $true)) {
     Remove-SEAntiRansom -Path $ARRegPath -On $AROn -Off $AROff -Property $ARRegProperty 
     #region Remove Container via DataPath Config
@@ -340,22 +419,28 @@ elseif (((Test-Path $SEDataPath) -eq $true)) {
         if ($SETasks) {
             Write-Output "Remove all Server-Eye Scheduled Tasks" 
             Unregister-ScheduledTask -InputObject $SETasks -Confirm:$false
+            if ((Test-Path $SETasksPath) -eq $true) {
+                Remove-ScheduledTaskFolder -Folder $SETasksPath
+            }
         }
+        Remove-SESU
     }
     catch {
         Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3010 -EntryType Error -Message "Error: $_"
         Write-Output "Error: $_" 
     }
 
-} 
+}
+#endregion RemoveSEDataOnly
 else {
     Write-Output "No Server-Eye Installation was found"
 }
+
 # SIG # Begin signature block
 # MIIlMgYJKoZIhvcNAQcCoIIlIzCCJR8CAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUNXG+VVM+xiRpq7LayS+znP2F
-# +f6ggh8aMIIFQDCCBCigAwIBAgIQPoouYh6JSKCXNBstwZR1fDANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUZq5MDMCGcHixSqakfNgvRja1
+# utSggh8aMIIFQDCCBCigAwIBAgIQPoouYh6JSKCXNBstwZR1fDANBgkqhkiG9w0B
 # AQsFADB8MQswCQYDVQQGEwJHQjEbMBkGA1UECBMSR3JlYXRlciBNYW5jaGVzdGVy
 # MRAwDgYDVQQHEwdTYWxmb3JkMRgwFgYDVQQKEw9TZWN0aWdvIExpbWl0ZWQxJDAi
 # BgNVBAMTG1NlY3RpZ28gUlNBIENvZGUgU2lnbmluZyBDQTAeFw0yMTAzMTUwMDAw
@@ -526,29 +611,29 @@ else {
 # aW1pdGVkMSQwIgYDVQQDExtTZWN0aWdvIFJTQSBDb2RlIFNpZ25pbmcgQ0ECED6K
 # LmIeiUiglzQbLcGUdXwwCQYFKw4DAhoFAKB4MBgGCisGAQQBgjcCAQwxCjAIoAKA
 # AKECgAAwGQYJKoZIhvcNAQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEO
-# MAwGCisGAQQBgjcCARUwIwYJKoZIhvcNAQkEMRYEFOvCS/+fDDZAj0w8mdz43Khl
-# UZ9gMA0GCSqGSIb3DQEBAQUABIIBAL2EEo6ravl7hZ5CIRH3pQx1k+LPkR+hJQWB
-# etn2AEDZjbXRQmWkbHxpTN8hZg0oo++3o3Ze2rYX8pTe0mpcIM6oWxVAeDOYjfEQ
-# 3hI8phv4GC+WaOpVdPZ0pW82k/OmLueCX9kyKUweLzTJnMOMB76jarO7sy99q9f4
-# /U9TyWHwwlOEP7zTT9uLQ2SidC/NCxe8DKZjY9KOyKK4bgUVypKQj2W/KSgM0zYD
-# rqxA5FsSvzuQeZhkjtwrQCSGQ91WfyolADPOu6+5TVYYdF5v9Hf+KLH8zDzKzCb+
-# /jg2z3LXoRdJK5Wdlys3mgz7WflpLjXFt4rziAjHN1wAa6LCq/uhggNMMIIDSAYJ
+# MAwGCisGAQQBgjcCARUwIwYJKoZIhvcNAQkEMRYEFHRvxhol6sfHHHPypz+yB1wr
+# 4DzRMA0GCSqGSIb3DQEBAQUABIIBAH++z8LvwT2H0ekBjQZXZRshOLKXh7qg4gev
+# emveJWlgExaB0xGrvcJufEUNNO1AePbkO55YQXZrmWJCS9Y7LWO3xLN4S+qev1Hm
+# KGnXSOLV3jR4Ed60al4TbYnTxxp/d6QmiS2QZBlLlX3QVQCJbZfXBK1NgeKq3lB0
+# urst82AMto9U0JJiTNhCZaWHPXH1q/9KP8wm459siQRee18EY7K8FvVQKtoJbSpO
+# ouDViTmqO4J4RwCeFr7+sMLrQPOXa8belq3ue//GEqWAfR65NOGQsnBHUK0cihcE
+# DZc7PsJOxGgTBceNltXJtRkYhpwj5z6ba0C+CfwxG5GRBKt7TsahggNMMIIDSAYJ
 # KoZIhvcNAQkGMYIDOTCCAzUCAQEwgZIwfTELMAkGA1UEBhMCR0IxGzAZBgNVBAgT
 # EkdyZWF0ZXIgTWFuY2hlc3RlcjEQMA4GA1UEBxMHU2FsZm9yZDEYMBYGA1UEChMP
 # U2VjdGlnbyBMaW1pdGVkMSUwIwYDVQQDExxTZWN0aWdvIFJTQSBUaW1lIFN0YW1w
 # aW5nIENBAhEAjHegAI/00bDGPZ86SIONazANBglghkgBZQMEAgIFAKB5MBgGCSqG
-# SIb3DQEJAzELBgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTIxMDUwNjA3MDQ1
-# MlowPwYJKoZIhvcNAQkEMTIEMMOLJUkS5z2daLWvlQOBNUCdk1uydolhhhorUZ0D
-# PyRffcBvMlQANxl38f/36aiYhjANBgkqhkiG9w0BAQEFAASCAgBkytf3dy446DGT
-# oDfTsQ6a7j8tvXIt7FpIp4xO67G7Ip77CL3D36DhKBoCpuinEaZFOd4HL48GWZgI
-# fbn94HYQYoD6qavGuMWPHVpAnnUIQrWuCiUW78WCnosdy0QfNc/Lfym8op/IwHv6
-# I9rE2KVGse94xeDhdPgOWDiH/Uo7zJPf30aeyNFceKYujD1/soibknFgPO1ZW53M
-# BfsApYYXU1rMEPQC0fuu6vKHBYjuaskgB3hfJZZLaMjjcbhdQ+IbUX9179L/XIf+
-# nVk/8UmTDIToA9qJswSomOs5SypmnsgCaZCan/kSG/q1TddLyP5RI+UB792rV9Vn
-# b59B9TG8NX5tvAXz9ANFXwdEIW1Ez9ggg0HksCdNBkcJuTdZVkTLK7dGnMlJz/en
-# cedA7L6JMUC4du3eZlprqFfK1CQRTynYD4MCHtBSLLCx412u9+696XuJeEi3k4qo
-# iqQ93iCKUP9yO0nDg8EsVxOy1CaTn6wJOXjHUT9YFbeCkiluCSr2nuhygdoCLt1y
-# iwMkqDnpTD4+wIZ5c0mLn2vd74nJmi9/7oBaqiGldZ01etE7G+4ep9z8Pj4aEgl7
-# kKjbJ4/T0xaIKeX9YVqyGKpCh8G0T928MeGPsyjJsNMH3aiBDFJIO0hKK0IaLAaR
-# 8IWkRm933XNnaGgvXH51zofUWNQUeQ==
+# SIb3DQEJAzELBgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTIxMDYyNTA2NDAy
+# M1owPwYJKoZIhvcNAQkEMTIEMLXfwCbWO5lqAgHZ0CzdFD9UT6Wtmt8E7/tNy+iM
+# P2lNTf318GPZEaL1a7XrGuA6sTANBgkqhkiG9w0BAQEFAASCAgAtDLbtb3pCqEd7
+# 9NXI6o+wRgXA47FtikOHPvYrbaJqV1iiah5/iAawFfFUnYdNdPYfegi8xKtxEubC
+# ubfcEyFwmwN2Vky6Va5FMrN2B9B8AeevnZlgscBVZH0WYn0xqta9o23nWkMbOfr/
+# QT5WsL8uJLTXajhtV/zw2k3xX1pZ5ZBJQiVwXzNvPCj/0+K5G7jnkzxs8EWRYJ8h
+# CsdKEzhputfaNPCQwCZhMaYReC9n7Os2oZURgHdzQMvIi8HEHv3HPXkJ4OYzg/dn
+# UxCjCzhHMSU7f9Jo4ZJkfnWh4tlMz5Abatk5zSNTKgqICKqYGpGqzjsu40CoIi2u
+# RoI8qDhrhMQR1sr0dPSXak+/YL6lzgO5/AriylpAtAxmccTVjcDsh1fJjhhTFgLU
+# VMCooj8fkVYOT7MuLojpK4uqwwgjNXdXXQ3oh/NJb98Vbm/KDi0wzX2x1JEhfYOB
+# CLrpDeDjqH5sRyLWALhzFxStzLmfJX7ywDztJ/0+NzwfwATh0QmSgCIA/law8b6y
+# 5FwD0gtZqrExZV98rbdv9TYJYUP6+fn3MQGN2b47DfTRX/ibDZKPvxTmghYKX9x8
+# I57IXC5tUw3ab+pB/bm7Nk2zUKtdJvTE41qCDQBDFAjuSp1l+y8DSyzDOzsInp4z
+# t7UGLwmHmWbaNWvF9FjsBRFux4lCmQ==
 # SIG # End signature block
