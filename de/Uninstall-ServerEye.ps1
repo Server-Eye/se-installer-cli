@@ -61,6 +61,9 @@ $ARRegProperty = "DefaultLevel"
 $SETasksName = "Server-Eye Tasks"
 $WinTasksPath = "C:\Windows\System32\Tasks"
 $SETasksPath = Join-Path -Path $WinTasksPath -ChildPath $SETasksName
+
+$autoupdate = "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU\NoAutoUpdate"
+
 #endregion Internal Variables
 
 #region Helper Function
@@ -246,6 +249,7 @@ Function Remove-SESU {
     $PSPSINIPath = Join-Path -Path $PSINIFilePAth -ChildPath $PSINIPSFileName
     
     $PSINIRegPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine\Scripts\Shutdown\0"
+    $SURegKey = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate"
     
     $Keys = Get-ChildItem -Path $PSINIRegPath
     $KeyToRemove = Get-ItemProperty -Path $keys.PSPath -Name "Script" | Where-Object -Property Script -like -Value $TriggerPatchRun
@@ -287,6 +291,9 @@ Function Remove-SESU {
         }
     }
     #endregion Reg
+    if (Test-Path $SURegKey) {
+        Remove-Item -Path $SURegKey -Recurse
+    }
     Write-Verbose "Call GPUpdate"
     gpupdate.exe /force
 }
@@ -453,8 +460,8 @@ else {
 # SIG # Begin signature block
 # MIIlMgYJKoZIhvcNAQcCoIIlIzCCJR8CAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUfM4mpXuy+gaiC+W+TPSGpYE6
-# YYaggh8aMIIFQDCCBCigAwIBAgIQPoouYh6JSKCXNBstwZR1fDANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUqCqXMdA5cX8m2TfXY4YfORp/
+# xDWggh8aMIIFQDCCBCigAwIBAgIQPoouYh6JSKCXNBstwZR1fDANBgkqhkiG9w0B
 # AQsFADB8MQswCQYDVQQGEwJHQjEbMBkGA1UECBMSR3JlYXRlciBNYW5jaGVzdGVy
 # MRAwDgYDVQQHEwdTYWxmb3JkMRgwFgYDVQQKEw9TZWN0aWdvIExpbWl0ZWQxJDAi
 # BgNVBAMTG1NlY3RpZ28gUlNBIENvZGUgU2lnbmluZyBDQTAeFw0yMTAzMTUwMDAw
@@ -625,29 +632,29 @@ else {
 # aW1pdGVkMSQwIgYDVQQDExtTZWN0aWdvIFJTQSBDb2RlIFNpZ25pbmcgQ0ECED6K
 # LmIeiUiglzQbLcGUdXwwCQYFKw4DAhoFAKB4MBgGCisGAQQBgjcCAQwxCjAIoAKA
 # AKECgAAwGQYJKoZIhvcNAQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIBCzEO
-# MAwGCisGAQQBgjcCARUwIwYJKoZIhvcNAQkEMRYEFCW9Dg+0m4TdSZ05PMGvAKVt
-# aHWnMA0GCSqGSIb3DQEBAQUABIIBAHPahbyVyoz44KOTmWdxoofTcA7tv0VtAwMD
-# hG6FiWgLENxkKb/NKfQYpdluydiWe2OBInJPE2fLx9sQZugAO4aFB52WuT9FDkyl
-# 8hLWLaB4D43Cdg8/SXdkMfHIE5BrAiUjhxgI17e65EFqcpE9QF31z5l3hH2F104P
-# MVYcj75WHjsVaHvngdWXAsPOGIdQ70OYAlfrMaL73UNi5IU8mlkQJYwWdU3GD10d
-# 3YYeiNI/prjoWzQkiNt0NDyPAw58csgb+vx+8K74v33CyaG/ZHo6ozPUvuP642NI
-# 2qVgv2GmfBy7m3zJpgkGHxNlnAKR0vJs0r2BVqiStKhAR7W9rH+hggNMMIIDSAYJ
+# MAwGCisGAQQBgjcCARUwIwYJKoZIhvcNAQkEMRYEFAoqKBZR9z7rwBFsmewA8VtE
+# 4UTuMA0GCSqGSIb3DQEBAQUABIIBAGw6V8ZX0wQJyZjSWZ1GUqEYLaufgP/ar5B1
+# AzMt132G5OLJ1Wh0FRJl7Mi9UE3E9ht+6YOUEFrJNyswf0G3fFIGvjkA2meApV+M
+# sGbAJFhTNrwNzHbgwf50ctIYhRjZnj/BbIGpKcwj8t0dWAmO4DvegvvkQdiPrlz0
+# dfVcCu0dLwr0Eb8pdivfvbMkZLEj9FpzLTJNOUZhoQ2KeprdrOq9Nzyi/kvCZsSb
+# Wt1N2tQw07zcbNc1M3syo58htQUoBe/cyRw76gkllgBXyBgzlvmKPMO6UEjjt//l
+# RqvesbB4lioFOtoMTZzILbavHZAOQ8yl0SvrvNcr7OXDPZ0XCgShggNMMIIDSAYJ
 # KoZIhvcNAQkGMYIDOTCCAzUCAQEwgZIwfTELMAkGA1UEBhMCR0IxGzAZBgNVBAgT
 # EkdyZWF0ZXIgTWFuY2hlc3RlcjEQMA4GA1UEBxMHU2FsZm9yZDEYMBYGA1UEChMP
 # U2VjdGlnbyBMaW1pdGVkMSUwIwYDVQQDExxTZWN0aWdvIFJTQSBUaW1lIFN0YW1w
 # aW5nIENBAhEAjHegAI/00bDGPZ86SIONazANBglghkgBZQMEAgIFAKB5MBgGCSqG
-# SIb3DQEJAzELBgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTIxMDYyNTA3NDI1
-# NFowPwYJKoZIhvcNAQkEMTIEMK5/Fhe00cJ5mciz1j5J3vMOuXRtYJN+KS0w3YxY
-# D2/B+I+jqyJkzboEO4aWcUId9zANBgkqhkiG9w0BAQEFAASCAgAzQ62mpWb5WWmA
-# FzGXVGhtiIdxXyUXFUZl01gI+DstDOtfkxkWUE+35IuZ4FvksSC5+7E6r6mj8RpD
-# dUtyt0cpMhk+AftdYlHNYuQ1qagylqX2ZJEXE9irkXTHP2Jf/yftT8E3bXDVoGkl
-# 3ukB0cPvJZsRaJzJn1sBzpBs5ubRZD30GxgoTdIchiBoL5RoIjZFi7KlgW3d2F1b
-# wIYtMhx40BJL2I+f4TcPliuupzc4Ewl+UEbN5dGX+aTvhmA/fqqdv0J+QbhSJAey
-# m7vyuRls+o7ydhRYJarIkgV2/areBmxQ5qSSfgB7QyPH6i08NBANLIc+oVJ8fN25
-# UdLmnzLFJs8ZF34XNxHKNc80DuoQSl0J9Jb7AXe8GCOU1mS2Vyu7Y3LniQRDOJg4
-# QH1RiTZpQ6UNzCwMlKVqtB3HgBkJIhTEgvvD2trPnYTiuoaGygA0Od9LeRzBpCK5
-# 488wKAcgYSk9bA4UM1MWqtKBAgAGnGWx3eWKXjRrk2PmhkUtLT/nWN4srJ7pSS8C
-# 2SsIyTZl8DM2tHbChGrhLhMpJVeq7+wws9IBqJhShoB4f1ONixw3B/OTrTqaD0Fs
-# 33Cz2hb6VjtGNoEg1heClaaOs5SxIvbzZmqAZs9yoT2v11cCcVF15Xine4zzgGlt
-# 5vYMnjSoPdfwC82dto60iGAsq6N8nw==
+# SIb3DQEJAzELBgkqhkiG9w0BBwEwHAYJKoZIhvcNAQkFMQ8XDTIxMDcwNjEzNTcy
+# N1owPwYJKoZIhvcNAQkEMTIEMGMv9FLLeuv0KO3vTXov8KVxeRMRNxDwWLfAbPyq
+# z0nmpbkaIUscu16LsSFhJuJUxjANBgkqhkiG9w0BAQEFAASCAgBAi7n/yJ873+U8
+# 3H8EghtMT4yDGb7PRcNSwZfRysaxQKvKC9jbmmZoKxGkCJ0K1Uu7QovMdLLU84Tr
+# aJGbN8OylMgN0dxrN+ONvpd/r+4KX8/GtcMaZM9iUM/d3VyAgQxgnMnO9N9f0rak
+# NJmYNSyYNjg2EVbDCHVfEv4uwEtKOfbSeBwxdFQw8EubVTr3gZPFhR9ODNQo8O5T
+# 5iEOZwN93V5RNWe9OQPFHp7D6gN0hlwRH1rn1q/8Lic1FgaLKfoqcHYy1GdSojdM
+# 1027S7Urp6ORNPNZdI92XaAVtH4DHWY+SyEDR1h/7OSKBcBvZ62xy13+YsVlgxNn
+# d36IG6EQZM5j01Vd+VOXk9VWMGkuAGl7lGZ9vcxPdiKRwsNaBroVYCpl/Q2TJHy5
+# nY4h/kjqtDP1uCNQkEK9qldqdAZQhF7rk8kk2wzIFOHDcDuJWWKcO3x7RSRBhlNa
+# 1QjFANKAEaFnH6bIvGO+F6T20CUKxGB1TBvnxvBUQe0gVwXXn8i9Z6+gXhqOLju4
+# EBN7o7w03xPZOUU9ZxTTG5qfoKNZDo13NrVfCI8kckDH8Dowlkt30dpOfREeyA2z
+# W01EfjOtEr8iidnqTGITHM7OjOH4cwkXibFWNzISm0VPtXifD9/LoXt9vThtioT+
+# HEXj2a6q1erz3qDa0FFEVMZtTTZ4bw==
 # SIG # End signature block
