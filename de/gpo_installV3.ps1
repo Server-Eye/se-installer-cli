@@ -18,12 +18,23 @@ $customerID = ""
 $templateid = ""
 $apikey = ""
 $parentGuid = ""
+
+# Wo sollen Remote Logs abgespeichert werden
 $SharedFolder = ""
+
+# Wird ein Proxy benötigt?
 $proxyIP = ""
 $proxyPort = ""
 $proxyDomain = ""
 $proxyUser = ""
 $proxyPassword = ""
+
+# Wenn eine Alarmierungen auf dem Sensorhub oder dem OCC-Connector gesetzt werden sollen
+$UserId = $null
+$Email = $false
+$Phone = $false
+$Ticket = $false
+$DeferId = $null
 
 #
 # Aendern Sie bitte nichts unterhalb dieser Zeile
@@ -33,7 +44,8 @@ $proxyPassword = ""
 $URL = "https://update.server-eye.de/download/se/ServerEyeSetup.exe"
 $SetupPath = Join-Path -Path $env:TEMP -ChildPath "\ServerEyeSetup.exe"
 $SEPath = "C:\Program Files (x86)\Server-Eye"
-$SEConfig = Join-Path -Path $SEPath -ChildPath "config\se3_cc.conf"
+$CCConfig = Join-Path -Path $SEPath -ChildPath "config\se3_cc.conf"
+$MACConfig = Join-Path -Path $SEPath -ChildPath "config\se3_mac.conf"
 $ERSPath = Join-Path -Path $SEPath -ChildPath "ers\EmergencyAction.exe"
 $SELogPath = Join-Path -Path $env:ProgramData -ChildPath "\ServerEye3\logs\"
 $SEInstallLog = Join-Path -Path $SELogPath -ChildPath "installer.log"
@@ -48,9 +60,9 @@ Function Find-ContainerID {
         [Parameter(Mandatory = $true)]
         $Path
     )
-
-    Write-Output (Get-Content $Path | Select-String -Pattern "\bguid=\b").ToString().Replace("guid=", "")
-
+    if (Test-Path $path ) {
+        Write-Output (Get-Content $Path | Select-String -Pattern "\bguid=\b").ToString().Replace("guid=", "")
+    }
 }
 #endregion FindContainerID
 #region Apply-Template
@@ -66,7 +78,11 @@ function Apply-Template {
         [string]
         $TemplateId,
 
-        $proxy,
+        [string]
+        $proxyip,
+
+        [string]
+        $proxyport,
 
         [PSCredential]
         $ProxyCredential
@@ -75,29 +91,103 @@ function Apply-Template {
     $url = "https://api-ms.server-eye.de/3/container/$guid/template/$templateId"
     $exitcode = 0
     try {
-        if ($proxyIP) {
-            [uri]$buildproxy = "http://{0}" -f $proxy
+        if ($proxyip) {
+            [uri]$buildproxy = "http://{0}:{1}" -f $proxyip, $proxyport
             if ($ProxyCredential) {
                 $Template = Invoke-RestMethod -Uri $url -Method Post -Headers @{"x-api-key" = $ApiKey } -Proxy $buildproxy -ProxyCredential $ProxyCredential
-                Add-Content -Path $SEInstallLog -Value "$(Get-Date -Format "yy.MM.dd hh:mm:ss")  INFO ServerEye.Installer.Logic.PowerShell Template added"
+                Add-Content -Path $SEInstallLog -Value "$(Get-Date -Format "yy.MM.dd hh:mm:ss")  INFO ServerEye.Installer.Logic.PowerShell - Template with $($template.Count) Sensoren added"
 
             }
             else {
                 $Template = Invoke-RestMethod -Uri $url -Method Post -Headers @{"x-api-key" = $ApiKey } -Proxy $buildproxy
-                Add-Content -Path $SEInstallLog -Value "$(Get-Date -Format "yy.MM.dd hh:mm:ss")  INFO ServerEye.Installer.Logic.PowerShell Template added"
+                Add-Content -Path $SEInstallLog -Value "$(Get-Date -Format "yy.MM.dd hh:mm:ss")  INFO ServerEye.Installer.Logic.PowerShell - Template with $($template.Count) Sensoren added"
             }
             
         }
         else {
             $Template = Invoke-RestMethod -Uri $url -Method Post -Headers @{"x-api-key" = $ApiKey }
-            Add-Content -Path $SEInstallLog -Value "$(Get-Date -Format "yy.MM.dd hh:mm:ss")  INFO ServerEye.Installer.Logic.PowerShell Template added"
+            Add-Content -Path $SEInstallLog -Value "$(Get-Date -Format "yy.MM.dd hh:mm:ss")  INFO ServerEye.Installer.Logic.PowerShell - Template with $($template.Count) Sensoren added"
         }
     }
     catch {
-        Add-Content -Path $SEInstallLog -Value "$(Get-Date -Format "yy.MM.dd hh:mm:ss")  INFO ServerEye.Installer.Logic.PowerShell Template Error: $_"
+        Add-Content -Path $SEInstallLog -Value "$(Get-Date -Format "yy.MM.dd hh:mm:ss")  ERROR ServerEye.Installer.Logic.PowerShell - Template Error: $_"
     }
 }
 #endregion Apply-Template
+#Region Notification
+#region helper Functions
+function Remove-Null {
+
+    [cmdletbinding()]
+    Param (
+        [parameter(ValueFromPipeline)]
+        $obj
+    )
+
+    Process {
+        $result = @{}
+        foreach ($key in $_.Keys) {
+            if ($_[$key] -ne $null) {
+                $result.Add($key, $_[$key])
+            }
+        }
+        $result
+    }
+}
+
+function Intern-PostJson($url, $authtoken, $body) {
+    $body = $body | Remove-Null | ConvertTo-Json
+    if ($authtoken -is [string]) {
+        return (Invoke-RestMethod -Uri $url -Method Post -Body $body -ContentType "application/json" -Headers @{"x-api-key" = $authtoken } );
+    }
+    else {
+        return (Invoke-RestMethod -Uri $url -Method Post -Body $body -ContentType "application/json" -WebSession $authtoken );
+    }
+}
+#endregion helper Functions
+function New-ContainerNotification {
+    [CmdletBinding()]
+    Param(
+        
+        [Parameter(Mandatory = $true)]
+        $CId,
+        [Parameter(Mandatory = $true)]
+        $UserId,
+        [Parameter(Mandatory = $false)]
+        $Email,
+        [Parameter(Mandatory = $false)]
+        $Phone,
+        [Parameter(Mandatory = $false)]
+        $Ticket,
+        [Parameter(Mandatory = $false)]
+        $DeferId,
+        [Parameter(Mandatory = $true)]
+        [alias("ApiKey", "Session")]
+        $AuthToken
+    )
+    
+    
+    Process {
+        $reqBody = @{
+        
+            'cId'     = $CId
+            'userId'  = $UserId
+            'email'   = $Email
+            'phone'   = $Phone
+            'ticket'  = $Ticket
+            'deferId' = $DeferId
+        }
+        try {
+            $Noti = Intern-PostJson -url "https://api.server-eye.de/2/container/$CId/notification" -authtoken $AuthToken -body $reqBody
+            Add-Content -Path $SEInstallLog -Value "$(Get-Date -Format "yy.MM.dd hh:mm:ss") INFO  ServerEye.Installer.Logic.PowerShell - Notification created for user $($noti.usermail)" 
+        }
+        catch {
+            Add-Content -Path $SEInstallLog -Value "$(Get-Date -Format "yy.MM.dd hh:mm:ss") ERROR  ServerEye.Installer.Logic.PowerShell - Notification Error: $_"
+        }
+
+    }
+}
+#endregion Notification
 #endregion Internal function
 
 #region Build Proxy
@@ -235,8 +325,23 @@ if (!(Test-Path $ERSPath)) {
         exit 1
     }
     Write-Debug "Collecting Logs finished"
-    $SensorhubID = Find-ContainerID -path $SEConfig
-    Apply-Template -Guid $SensorhubID -authtoken $apikey -TemplateId $templateid -proxyIP $proxyip -proxyPort $proxyport -ProxyCredential $Cred
+    $SensorhubID = Find-ContainerID -path $CCConfig
+    $ConnectorID = Find-ContainerID -path $MACConfig
+    if ($templateid) {
+        foreach ($template in $templateid) {
+            Apply-Template -Guid $SensorhubID -authtoken $apikey -TemplateId $template -proxyip $proxyip -proxyPort $proxyport -ProxyCredential $Cred
+        }
+    }
+
+    if ($userid) {
+        if ($ConnectorID) {
+            New-ContainerNotification -CId $ConnectorID -UserId $userid -Email $Email -Phone $Phone -Ticket $Ticket -DeferId $DeferId -AuthToken $apikey
+            New-ContainerNotification -CId $SensorhubID -UserId $userid -Email $Email -Phone $Phone -Ticket $Ticket -DeferId $DeferId -AuthToken $apikey
+        }
+        else {
+            New-ContainerNotification -CId $SensorhubID -UserId $userid -Email $Email -Phone $Phone -Ticket $Ticket -DeferId $DeferId -AuthToken $apikey
+        } 
+    }
     Copy-Item $SEInstallLog $remoteLog 
     exit 0
 }
