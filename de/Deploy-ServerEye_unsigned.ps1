@@ -574,7 +574,7 @@ function Start-ServerEyeInstallation
 		Write-Log "Server-Eye Sensorhub Configuration finished" -EventID 15
 	}
 	
-	if ($TemplateConfig.ApplyTemplate)
+	if ($TemplateConfig.ApplyTemplate -and $TemplateConfig.TemplateId -ne $NULL)
 	{
 		Write-Log "Starting to apply template to the SensorHub" -EventID 16
 		$guid = Get-SensorHubId -ConfigFileCC $HubConfig.ConfFileCC
