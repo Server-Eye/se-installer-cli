@@ -331,7 +331,7 @@ Function Remove-SEAntiRansom {
     )
     If ((Get-ItemPropertyValue -Path $Path -Name DefaultLevel) -eq $On) {
         Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3004 -EntryType Information -Message "Remove Server-Eye Anti-Ransom"
-        Set-ItemProperty -Path $ARRegPath -Name $Property -Value $Off
+        Set-ItemProperty -Path $Path -Name $Property -Value $Off
     }
 
 }
