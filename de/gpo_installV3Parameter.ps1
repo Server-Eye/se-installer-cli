@@ -1,69 +1,146 @@
-# Server-Eye GPO Install
-# Version 3.0
-# Author: Thomas Krammes
-# Author: Andreas Behr
-# Author: Rene Thulke
-#
-# Weitere Informationen zu diesem Skript finden Sie hier:
-# https://servereye.freshdesk.com/support/solutions/articles/14000113669
+<#
+    .SYNOPSIS
+    Install Server-Eye via Commandline.
+    
+    .DESCRIPTION
+    Install Server-Eye via Commandline with the Setup.
+        
+    .PARAMETER customerID
+    ID of the Customer, where the System should be installed
+
+    .PARAMETER apikey
+    APIKey to install the System
+
+    .PARAMETER parentGuid
+    ID of the OCC-Connector where the Sensorhub should be installed
+
+    .PARAMETER OCCConnector
+    A OCC-Connector will be installed on the System
+
+    .PARAMETER SharedFolder
+    Path were the Logs should be stored in a central location
+
+    .PARAMETER proxyIP
+    IP of the Proxy
+
+    .PARAMETER proxyPort
+    Port of the Proxy
+
+    .PARAMETER proxyUser
+    User to authenticate against the Proxy
+
+    .PARAMETER proxyPassword
+    Password for the Proxy User to authenticate against the Proxy
+
+    .PARAMETER templateid
+    IDs of the templates that should be added to the installed Sensorhub
+
+    .PARAMETER UserId
+    ID of the User that should be set to get a Notification for an alert of the Sensorhub or OCC-Connector
+
+    .PARAMETER Email
+    A Email should be send in the Notification
+    
+    .PARAMETER Phone
+    A SMS should be send in the Notification
+
+    .PARAMETER Ticket
+    A Ticket should be send in the Notification
+
+    .PARAMETER DeferId
+    ID of the Defer to be set in the Notification
+
+    .EXAMPLE
+    Sensorhub 
+    gpo_installV3Parameter.ps1 -customerID "CustomerID" -apikey "APIKey" -parentGuid "OCC-Connector ID" -SharedFolder "UNC Path"
+
+    .EXAMPLE
+    OCC-Connector
+    gpo_installV3Parameter.ps1 -customerID "CustomerID" -apikey "APIKey" -OCCConnector -SharedFolder "UNC Path"
+
+    .EXAMPLE
+    Sensorhub with template
+    gpo_installV3Parameter.ps1 -customerID "CustomerID" -apikey "APIKey" -parentGuid "OCC-Connector ID" -SharedFolder "UNC Path" -templateid "template ID"
 
 
-[CmdletBinding()]
+    .LINK 
+    https://servereye.freshdesk.com/support/solutions/articles/14000113669
+
+    .NOTES
+    Version 3.0
+    Author: Server-Eye
+    
+#>
+
+
+[CmdletBinding(DefaultParameterSetName = 'Sensorhub')]
 Param(
 
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $true,ParameterSetName = 'Sensorhub')]
+    [Parameter(Mandatory = $true,ParameterSetName = 'OCCConnector')]
     [ValidateNotNullOrEmpty()]
     [string]$customerID,
 
-    [Parameter(Mandatory = $false)]
-    [AllowNull()]
-    [string]$templateid,
-
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $true,ParameterSetName = 'Sensorhub')]
+    [Parameter(Mandatory = $true,ParameterSetName = 'OCCConnector')]
     [ValidateNotNullOrEmpty()]
     [string]$apikey,
 
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $true,ParameterSetName = 'Sensorhub')]
     [ValidateNotNullOrEmpty()]
     [string]$parentGuid,
+    
+    [Parameter(Mandatory = $true,ParameterSetName = 'OCCConnector')]
+    [Switch]$OCCConnector,
 
-    [Parameter(Mandatory = $true)]
-    [ValidateScript({Test-Path $_ })]
+    [Parameter(Mandatory = $true,ParameterSetName = 'Sensorhub')]
+    [Parameter(Mandatory = $true,ParameterSetName = 'OCCConnector')]
+    [ValidateScript({ Test-Path $_ })]
     [String]$SharedFolder,
 
-    [Parameter(Mandatory = $false)]
+    [Parameter(Mandatory = $false,ParameterSetName = 'Sensorhub')]
+    [Parameter(Mandatory = $false,ParameterSetName = 'OCCConnector')]
     [string]$proxyIP,
 
-    [Parameter(Mandatory = $false)]
+    [Parameter(Mandatory = $false,ParameterSetName = 'Sensorhub')]
+    [Parameter(Mandatory = $false,ParameterSetName = 'OCCConnector')]
     [string]$proxyPort,
 
-    [Parameter(Mandatory = $false)]
+    [Parameter(Mandatory = $false,ParameterSetName = 'Sensorhub')]
+    [Parameter(Mandatory = $false,ParameterSetName = 'OCCConnector')]
     [string]$proxyUser,
 
-    [Parameter(Mandatory = $false)]
+    [Parameter(Mandatory = $false,ParameterSetName = 'Sensorhub')]
+    [Parameter(Mandatory = $false,ParameterSetName = 'OCCConnector')]
     [string]$proxyPassword,
 
-    [Parameter(Mandatory = $false)]
+    [Parameter(Mandatory = $false,ParameterSetName = 'Sensorhub')]
+    [Parameter(Mandatory = $false,ParameterSetName = 'OCCConnector')]
+    [AllowNull()]
+    [string[]]$templateid,
+
+    [Parameter(Mandatory = $false,ParameterSetName = 'Sensorhub')]
+    [Parameter(Mandatory = $false,ParameterSetName = 'OCCConnector')]
     [AllowNull()]
     [string]$UserId,
 
-    [Parameter(Mandatory = $false)]
+    [Parameter(Mandatory = $false,ParameterSetName = 'Sensorhub')]
+    [Parameter(Mandatory = $false,ParameterSetName = 'OCCConnector')]
     [Switch]$Email,
 
-    [Parameter(Mandatory = $false)]
+    [Parameter(Mandatory = $false,ParameterSetName = 'Sensorhub')]
+    [Parameter(Mandatory = $false,ParameterSetName = 'OCCConnector')]
     [Switch]$Phone,
 
-    [Parameter(Mandatory = $false)]
-    [Switch]$DeferId,
+    [Parameter(Mandatory = $false,ParameterSetName = 'Sensorhub')]
+    [Parameter(Mandatory = $false,ParameterSetName = 'OCCConnector')]
+    [Switch]$Ticket,
 
-    [Parameter(Mandatory = $false)]
-    [Switch]$OCCConnector
+    [Parameter(Mandatory = $false,ParameterSetName = 'Sensorhub')]
+    [Parameter(Mandatory = $false,ParameterSetName = 'OCCConnector')]
+    [Switch]$DeferId
+
 )
-
-
-#
-# Aendern Sie bitte nichts unterhalb dieser Zeile
-#
 
 #region Internal Variables
 $URL = "https://update.server-eye.de/download/se/ServerEyeSetup.exe"
@@ -380,3 +457,4 @@ else {
     Write-verbose "Collecting Logs, Server-Eye inst finished"
     exit 0
 }
+
