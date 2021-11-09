@@ -51,6 +51,8 @@ $SELogPath = Join-Path -Path $env:ProgramData -ChildPath "\ServerEye3\logs\"
 $SEInstallLog = Join-Path -Path $SELogPath -ChildPath "installer.log"
 #endregion Internal Variables
 
+Write-verbose $PSBoundParameters
+
 #region Internal function
 #region FindContainerID
 Function Find-ContainerID {
@@ -65,8 +67,8 @@ Function Find-ContainerID {
     }
 }
 #endregion FindContainerID
-#region Apply-Template
-function Apply-Template {
+#region Add-Template
+function Add-Template {
     [CmdletBinding()]
     Param (
         [string]
@@ -113,7 +115,7 @@ function Apply-Template {
         Add-Content -Path $SEInstallLog -Value "$(Get-Date -Format "yy.MM.dd hh:mm:ss")  ERROR ServerEye.Installer.Logic.PowerShell - Template Error: $_"
     }
 }
-#endregion Apply-Template
+#endregion Add-Template
 #Region Notification
 #region helper Functions
 function Remove-Null {
@@ -187,25 +189,48 @@ function New-ContainerNotification {
 
     }
 }
+
+function Save-SELog {
+    param (
+        [Parameter(Mandatory = $true)]
+        $Path,
+        [Parameter(Mandatory = $true)]
+        [switch]$withError
+    )
+
+    if ($withError) {
+        $MSIRemoteFolder = Join-Path -Path $Path -ChildPath "MSILogs"
+        if (!(Test-Path $MSIRemoteFolder)) {
+            New-Item -Path $MSIRemoteFolder -ItemType Directory
+        }
+    
+        $MSILog = Get-ChildItem -Path $env:TEMP -Filter Server-Eye_*
+        foreach ($log in $MSILog) {
+            Copy-Item -Path $log.FullName -Destination $MSIRemoteFolder
+        }
+    }
+    Copy-Item $SEInstallLog $Path 
+}
+
 #endregion Notification
 #endregion Internal function
 
 #region Build Proxy
 if ($proxyIP) {
-    Write-Debug "Proxy IP Detected" 
+    Write-verbose "Proxy IP Detected" 
     $buildproxy = "{0}:{1}" -f $proxyIP, $proxyPort
     if ($proxyUser) {
-        Write-Debug "Create Secure Password" 
+        Write-verbose "Create Secure Password" 
         $PWord = ConvertTo-SecureString -String $proxyPassword -AsPlainText -Force
         if ($proxyDomain) {
-            Write-Debug "Build User with Domain" 
+            Write-verbose "Build User with Domain" 
             $proxyCred = "{0}\{1}" -f $proxyDomain, $proxyuser
         }
         else {
-            Write-Debug "Build User without Domain" 
+            Write-verbose "Build User without Domain" 
             $proxyCred = $proxyUser
         }
-        Write-Debug "Build Secure Credential" 
+        Write-verbose "Build Secure Credential" 
         $Cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $ProxyCred, $PWord
         
     }
@@ -214,27 +239,27 @@ if ($proxyIP) {
 
 #region Server-Eye Download
 # Download der aktuellen Version
-Write-Debug "Check if Setup Download is needed"
+Write-verbose "Check if Setup Download is needed"
 if (!(Test-Path $SetupPath)) {
-    Write-Debug "Download is needed"
+    Write-verbose "Download is needed"
     try {
-        Write-Debug "Start Downloading the Server-Eye Setup"
+        Write-verbose "Start Downloading the Server-Eye Setup"
         if ($proxyIP) {
-            Write-Debug "Proxy IP Detected" 
+            Write-verbose "Proxy IP Detected" 
             if ($proxyUser) {
-                Write-Debug "Start Download" 
+                Write-verbose "Start Download" 
                 Start-BitsTransfer -Source $URL -Destination $SetupPath -Description "Server-Eye Setup" -ProxyUsage Override -ProxyList $buildproxy -ProxyAuthentication "Basic" -ProxyCredential $Cred
-                Write-Debug "Finished Downloading the Server-Eye Setup" 
+                Write-verbose "Finished Downloading the Server-Eye Setup" 
             }
             else {
                 Start-BitsTransfer -Source $URL -Destination $SetupPath -Description "Server-Eye Setup" -ProxyUsage Override -ProxyList $buildproxy
-                Write-Debug "Finished Downloading the Server-Eye Setup" 
+                Write-verbose "Finished Downloading the Server-Eye Setup" 
             }
 
         }
         else {
             Start-BitsTransfer -Source $URl -Destination $SetupPath -Description "Server-Eye Setup"
-            Write-Debug "Finished Downloading the Server-Eye Setup" 
+            Write-verbose "Finished Downloading the Server-Eye Setup" 
         }
     }
     catch {
@@ -244,20 +269,20 @@ if (!(Test-Path $SetupPath)) {
 
 }
 else {
-    Write-Debug "No Download is needed"
+    Write-verbose "No Download is needed"
 }
 #endregion Server-Eye Download
 
 #Erstellen der Prozess Argument
 #region Arguments
 
-Write-Debug "Starting Argument"
+Write-verbose "Starting Argument"
 if ($OCCConnector) {
-    Write-Debug "Argument for OCC-Connector"
+    Write-verbose "Argument for OCC-Connector"
     $Install = "newConnector"
 }
 else {
-    Write-Debug "Argument for Sensorhub"
+    Write-verbose "Argument for Sensorhub"
     $Install = "install --cID={0}" -f $parentGuid
 }
 #WIP
@@ -268,14 +293,14 @@ else {
 $template = $null
 #}
 if ($proxyIP) {
-    Write-Debug "Argument with Proxy URL"
+    Write-verbose "Argument with Proxy URL"
     $Proxy = " --proxyUrl={0} --proxyPort={1}" -f $proxyIP, $proxyport
     if ($proxyUser) {
-        Write-Debug "Argument with Authentication Proxy"
+        Write-verbose "Argument with Authentication Proxy"
         $proxy = "{0} --proxyUser={1} --proxyPassword={2}" -f $Proxy, $proxyUser, $proxyPassword
     }
     if ($proxyDomain) {
-        Write-Debug "Argument with Authentication Proxy with Domain"
+        Write-verbose "Argument with Authentication Proxy with Domain"
         $proxy = "{0} --proxyDomain={1}" -f $Proxy, $proxyDomain
     }
 }
@@ -290,51 +315,50 @@ $startProcessParams = @{
     NoNewWindow  = $true;
     Passthru     = $true;
 } 
-Write-Debug "Finished Argument construction"
+Write-verbose "Finished Argument construction"
 #endregion Arguments
 
 
 # Installation Server-Eye
 #region CheckRemoteLog
-Write-Debug "Setting RemoteLogs Folder"
-$remoteLog = Join-Path -Path $SharedFolder -ChildPath $env:computername
-if (!(Test-Path $remoteLog)) {
-    New-Item -Path $remoteLog  -ItemType Directory
+Write-verbose "Setting RemoteLogs Folder"
+if ($SharedFolder) {
+    $remoteLog = Join-Path -Path $SharedFolder -ChildPath $env:computername
+    if (!(Test-Path $remoteLog)) {
+        New-Item -Path $remoteLog  -ItemType Directory
+    }
 }
+
 #endregion CheckRemoteLog
-Write-Debug "Check Server-Eye Installation State"
+Write-verbose "Check Server-Eye Installation State"
 
 if (!(Test-Path $ERSPath)) {
     
-    Write-Debug "Starting Server-Eye installation"
+    Write-verbose "Starting Server-Eye installation"
     $Setup = Start-Process @startProcessParams
-    Write-Debug "Finished Server-Eye installation: $($Setup.ExitCode)"
-    Write-Debug "Collecting Logs"
+    Write-verbose "Finished Server-Eye installation: $($Setup.ExitCode)"
+    Write-verbose "Collecting Logs"
 
     if ($setup.ExitCode -ne 0) {
-        Write-Debug "Collecting MSI Logs"
-        $MSIRemoteFolder = Join-Path -Path $remoteLog -ChildPath "MSILogs"
-        if (!(Test-Path $MSIRemoteFolder)) {
-            New-Item -Path $MSIRemoteFolder -ItemType Directory
-        }
-
-        $MSILog = Get-ChildItem -Path $env:TEMP -Filter Server-Eye_*
-        foreach ($log in $MSILog) {
-            Copy-Item -Path $log.FullName -Destination $MSIRemoteFolder
+        Write-verbose "Collecting MSI Logs"
+        if ($SharedFolder) {
+        Save-SELog -Path $remoteLog -withError
         }
         exit 1
     }
-    Write-Debug "Collecting Logs finished"
+    Write-verbose "Collecting Logs finished"
     $SensorhubID = Find-ContainerID -path $CCConfig
     $ConnectorID = Find-ContainerID -path $MACConfig
     if ($templateid) {
         foreach ($template in $templateid) {
-            Apply-Template -Guid $SensorhubID -authtoken $apikey -TemplateId $template -proxyip $proxyip -proxyPort $proxyport -ProxyCredential $Cred
+            #Try Catch in Function not need here
+            Add-Template -Guid $SensorhubID -authtoken $apikey -TemplateId $template -proxyip $proxyip -proxyPort $proxyport -ProxyCredential $Cred
         }
     }
 
     if ($userid) {
         if ($ConnectorID) {
+            #Try Catch in Function not need here
             New-ContainerNotification -CId $ConnectorID -UserId $userid -Email $Email -Phone $Phone -Ticket $Ticket -DeferId $DeferId -AuthToken $apikey
             New-ContainerNotification -CId $SensorhubID -UserId $userid -Email $Email -Phone $Phone -Ticket $Ticket -DeferId $DeferId -AuthToken $apikey
         }
@@ -342,14 +366,18 @@ if (!(Test-Path $ERSPath)) {
             New-ContainerNotification -CId $SensorhubID -UserId $userid -Email $Email -Phone $Phone -Ticket $Ticket -DeferId $DeferId -AuthToken $apikey
         } 
     }
-    Copy-Item $SEInstallLog $remoteLog 
+    if ($SharedFolder) {
+    Save-SELog -Path $remoteLog
+    }
     exit 0
 }
 else {
-    Write-Debug "Collecting Logs, Server-Eye inst installed"
-    Write-Debug "Create new Loglinie Server-Eye installed"
+    Write-verbose "Collecting Logs, Server-Eye inst installed"
+    Write-verbose "Create new Loglinie Server-Eye installed"
     Add-Content -Path $SEInstallLog -Value "$(Get-Date -Format "yy.MM.dd hh:mm:ss") INFO  ServerEye.Installer.Logic.PowerShell Server-Eye already Installed, exit PowerShell Script"
-    Copy-Item $SEInstallLog $remoteLog 
-    Write-Debug "Collecting Logs, Server-Eye inst finished"
+    if ($SharedFolder) {
+    Save-SELog -Path $remoteLog 
+    }
+    Write-verbose "Collecting Logs, Server-Eye inst finished"
     exit 0
 }
