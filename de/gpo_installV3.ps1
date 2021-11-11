@@ -18,6 +18,7 @@ $customerID = ""
 $templateid = ""
 $apikey = ""
 $parentGuid = ""
+$cleanup = $false
 
 # Wo sollen Remote Logs abgespeichert werden
 $SharedFolder = ""
@@ -307,7 +308,7 @@ if ($proxyIP) {
 else {
     $proxy = $null
 }
-$argument = '"ARGUMENTS={0} --customerID={1} --apiKey={2} --silent=true{3}{4}" "/quiet"' -f $Install, $customerID, $apikey, $template, $Proxy
+$argument = '"ARGUMENTS={0} --customerID={1} --apiKey={2} --silent=true --cleanup={3}{4}{5}" "/quiet"' -f $Install, $customerID, $apikey, $cleanup.toString().ToLower(), $template, $Proxy
 $startProcessParams = @{
     FilePath     = $SetupPath
     ArgumentList = $argument       
