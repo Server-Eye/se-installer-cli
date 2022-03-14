@@ -50,6 +50,7 @@ $MACConfig = Join-Path -Path $SEPath -ChildPath "config\se3_mac.conf"
 $ERSPath = Join-Path -Path $SEPath -ChildPath "ers\EmergencyAction.exe"
 $SELogPath = Join-Path -Path $env:ProgramData -ChildPath "\ServerEye3\logs\"
 $SEInstallLog = Join-Path -Path $SELogPath -ChildPath "installer.log"
+$ErrorActionPreference = "Continue"
 #endregion Internal Variables
 
 Write-verbose $PSBoundParameters
@@ -114,6 +115,8 @@ function Add-Template {
     }
     catch {
         Add-Content -Path $SEInstallLog -Value "$(Get-Date -Format "yy.MM.dd hh:mm:ss")  ERROR ServerEye.Installer.Logic.PowerShell - Template Error: $_"
+        Write-Error -Message "Template Error: $_" -ErrorAction $ErrorActionPreference
+        
     }
 }
 #endregion Add-Template
@@ -186,6 +189,7 @@ function New-ContainerNotification {
         }
         catch {
             Add-Content -Path $SEInstallLog -Value "$(Get-Date -Format "yy.MM.dd hh:mm:ss") ERROR  ServerEye.Installer.Logic.PowerShell - Notification Error: $_"
+            Write-Error -Message "Notification Error: $_" -ErrorAction $ErrorActionPreference
         }
 
     }
