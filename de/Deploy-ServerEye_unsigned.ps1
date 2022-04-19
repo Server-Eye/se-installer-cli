@@ -692,19 +692,15 @@ function Download-SEInstallationFiles
 	
 	Write-Log "  getting current Server-Eye version... " -NoNewLine
 	Write-Log "  Version is:$version" -NoNewLine
-	Write-Log "done" -ForegroundColor Green
 
 	Write-Log "  downloading ServerEye.Setup... " -NoNewline
 	Download-SEFile "$BaseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" "$Path\ServerEyeSetup.exe" -proxy $proxy
-	Write-Log "done" -ForegroundColor Green
 	
 	Write-Log "  downloading ServerEye.Vendor... " -NoNewline
 	Download-SEFile "$BaseDownloadUrl/vendor/$SE_vendor/Vendor.msi" "$Path\Vendor.msi" -proxy $proxy
-	Write-Log "done" -ForegroundColor Green
 	
 	Write-Log "  downloading ServerEye.Core... " -NoNewline
 	Download-SEFile "$BaseDownloadUrl/setup/ServerEye.msi" "$Path\ServerEye.msi" -proxy $proxy
-	Write-Log "done" -ForegroundColor Green
 
 	
 }
@@ -871,51 +867,58 @@ function Download-SEFile
 
 		$proxy
 	)
-	
-	try
+
+	if ([System.IO.File]::Exists($TargetFile))
 	{
-		
-		$uri = New-Object "System.Uri" "$url"
-		$request = [System.Net.HttpWebRequest]::Create($uri)
-		if (!$Proxy){
-			$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
-			$request.Proxy = $WebProxy
-		}elseif (($Proxy.gettype()).Name -eq "WebProxy") {
-			$request.Proxy = $WebProxy
-		}else {
-			$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
-			$request.Proxy = $WebProxy
-		}
-		$request.set_Timeout(15000) #15 second timeout
-		$response = $request.GetResponse()
-		$totalLength = [System.Math]::Floor($response.get_ContentLength()/1024)
-		$responseStream = $response.GetResponseStream()
-		$targetStream = New-Object -TypeName System.IO.FileStream -ArgumentList $targetFile, Create
-		$buffer = new-object byte[] 10KB
-		$count = $responseStream.Read($buffer, 0, $buffer.length)
-		$downloadedBytes = $count
-		
-		while ($count -gt 0)
+		Write-Log "using local file" -ForegroundColor Green
+	} else {	
+		try
 		{
-			$targetStream.Write($buffer, 0, $count)
+			
+			$uri = New-Object "System.Uri" "$url"
+			$request = [System.Net.HttpWebRequest]::Create($uri)
+			if (!$Proxy){
+				$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+				$request.Proxy = $WebProxy
+			}elseif (($Proxy.gettype()).Name -eq "WebProxy") {
+				$request.Proxy = $WebProxy
+			}else {
+				$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+				$request.Proxy = $WebProxy
+			}
+			$request.set_Timeout(15000) #15 second timeout
+			$response = $request.GetResponse()
+			$totalLength = [System.Math]::Floor($response.get_ContentLength()/1024)
+			$responseStream = $response.GetResponseStream()
+			$targetStream = New-Object -TypeName System.IO.FileStream -ArgumentList $targetFile, Create
+			$buffer = new-object byte[] 10KB
 			$count = $responseStream.Read($buffer, 0, $buffer.length)
-			$downloadedBytes = $downloadedBytes + $count
-			Write-Progress -activity "Downloading file '$($url.split('/') | Select-Object -Last 1)'" -status "Downloaded ($([System.Math]::Floor($downloadedBytes/1024))K of $($totalLength)K): " -PercentComplete ((([System.Math]::Floor($downloadedBytes/1024)) / $totalLength) * 100)
+			$downloadedBytes = $count
+			
+			while ($count -gt 0)
+			{
+				$targetStream.Write($buffer, 0, $count)
+				$count = $responseStream.Read($buffer, 0, $buffer.length)
+				$downloadedBytes = $downloadedBytes + $count
+				Write-Progress -activity "Downloading file '$($url.split('/') | Select-Object -Last 1)'" -status "Downloaded ($([System.Math]::Floor($downloadedBytes/1024))K of $($totalLength)K): " -PercentComplete ((([System.Math]::Floor($downloadedBytes/1024)) / $totalLength) * 100)
+			}
+			
+			Write-Progress -activity "Finished downloading file '$($url.split('/') | Select-Object -Last 1)'" -Status "Done" -Completed
+			
+			$targetStream.Flush()
+			$targetStream.Close()
+			$targetStream.Dispose()
+			$responseStream.Dispose()
+
+			Write-Log "done" -ForegroundColor Green
+			
 		}
-		
-		Write-Progress -activity "Finished downloading file '$($url.split('/') | Select-Object -Last 1)'" -Status "Done" -Completed
-		
-		$targetStream.Flush()
-		$targetStream.Close()
-		$targetStream.Dispose()
-		$responseStream.Dispose()
-		
-	}
-	catch
-	{
-		
-		#Write-Log -Message "Error downloading: $Url - Interrupting execution - $($_.Exception.Message)" -EventID 666 -EntryType Error
-		Stop-Execution
+		catch
+		{
+			
+			#Write-Log -Message "Error downloading: $Url - Interrupting execution - $($_.Exception.Message)" -EventID 666 -EntryType Error
+			Stop-Execution
+		}
 	}
 }
 #endregion Main Functions
