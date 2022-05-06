@@ -105,7 +105,7 @@
 #Requires -Version 2
 
 
-[CmdletBinding(DefaultParameterSetName ='None')]
+[CmdletBinding(DefaultParameterSetName = 'None')]
 param(
 	[switch]
 	$Install,
@@ -157,10 +157,10 @@ param(
 	$DeployPath,
 	
 	[switch]
-    $SkipInstalledCheck,
+	$SkipInstalledCheck,
     
-    [switch]
-    $SkipLogInstalledCheck,
+	[switch]
+	$SkipLogInstalledCheck,
 	
 	[string]
 	$LogFile,
@@ -168,10 +168,13 @@ param(
 	[switch]
 	$NoExit,
 
-	$proxy=$Null,
+	$proxy = $Null,
 
 	[switch]
-	$InstallDotNet
+	$InstallDotNet,
+
+	[switch]
+	$DeleteDownloadedFiles
 )
 
 #region Preconfigure some static settings
@@ -185,51 +188,52 @@ $SE_queueServer = "queue.server-eye.de"
 $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
 $SE_vendor = "Vendor.ServerEye"
-$wc= new-object system.net.webclient
-if (!$Proxy){
-	$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+$wc = new-object system.net.webclient
+if (!$Proxy) {
+	$WebProxy = New-Object System.Net.WebProxy($proxy, $true)
 	$wc.Proxy = $WebProxy
-}elseif (($Proxy.gettype()).Name -eq "WebProxy") {
+}
+elseif (($Proxy.gettype()).Name -eq "WebProxy") {
 	$wc.Proxy = $WebProxy
-}else {
-	$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+}
+else {
+	$WebProxy = New-Object System.Net.WebProxy($proxy, $true)
 	$wc.Proxy = $WebProxy
 }
 
 $SE_Version = $wc.DownloadString("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersion")
 
-if ($DeployPath -eq "")
-{
+if ($DeployPath -eq "") {
 	$DeployPath = (Resolve-Path .\).Path
 }
 
 # Create OCC Configuration Object
 $OCCConfig = New-Object System.Management.Automation.PSObject -Property @{
-	ConfFileMAC = ""
-	Customer = $Customer
-	Secret = $Secret
-	NodeName = $NodeName
+	ConfFileMAC   = ""
+	Customer      = $Customer
+	Secret        = $Secret
+	NodeName      = $NodeName
 	ConnectorPort = $ConnectorPort
-	ConfigServer = $SE_configServer
-	PushServer = $SE_pushServer
-	QueueServer = $SE_queueServer
+	ConfigServer  = $SE_configServer
+	PushServer    = $SE_pushServer
+	QueueServer   = $SE_queueServer
 }
 
 # Create Sensorhub Configuration Object
 $HubConfig = New-Object System.Management.Automation.PSObject -Property @{
 	ConfFileCC = ""
-	Customer = $Customer
-	Secret = $Secret
-	NodeName = $NodeName
-	HubPort = $HubPort
+	Customer   = $Customer
+	Secret     = $Secret
+	NodeName   = $NodeName
+	HubPort    = $HubPort
 	ParentGuid = $ParentGuid
 }
 
 # Create Template Configuration Object
 $TemplateConfig = New-Object System.Management.Automation.PSObject -Property @{
 	ApplyTemplate = $ApplyTemplate.ToBool()
-	TemplateID = $TemplateId
-	ApiKey = $ApiKey
+	TemplateID    = $TemplateId
+	ApiKey        = $ApiKey
 }
 
 # Set the global verbosity level
@@ -239,12 +243,10 @@ $script:_SilentOverride = $Silent.ToBool()
 $script:_NoExit = $NoExit.ToBool()
 
 # Set the logfile path
-if ($LogFile -eq "")
-{
+if ($LogFile -eq "") {
 	$script:_LogFilePath = $env:TEMP + "\ServerEyeInstall.log"
 }
-else
-{
+else {
 	$script:_LogFilePath = $LogFile
 }
 
@@ -256,8 +258,7 @@ catch { }
 #endregion Register Eventlog Source
 
 #region Utility Functions
-function Test-64Bit
-{
+function Test-64Bit {
 	[CmdletBinding()]
 	Param (
 		
@@ -265,25 +266,21 @@ function Test-64Bit
 	return ([IntPtr]::Size -eq 8)
 }
 
-function Get-ProgramFilesDirectory
-{
+function Get-ProgramFilesDirectory {
 	[CmdletBinding()]
 	Param (
 		
 	)
 	
-	if ((Test-64Bit) -eq $true)
-	{
+	if ((Test-64Bit) -eq $true) {
 		Get-Item ${Env:ProgramFiles(x86)} | Select-Object -ExpandProperty FullName
 	}
-	else
-	{
+	else {
 		Get-Item $env:ProgramFiles | Select-Object -ExpandProperty FullName
 	}
 }
 
-function Write-Header
-{
+function Write-Header {
 	[CmdletBinding()]
 	Param (
 		
@@ -304,8 +301,7 @@ function Write-Header
 	Write-Host "Welcome to the (mostly) silent Server-Eye installer`n"
 }
 
-function Write-SEDeployHelp
-{
+function Write-SEDeployHelp {
 	[CmdletBinding()]
 	Param (
 		
@@ -333,8 +329,7 @@ function Write-SEDeployHelp
 	
 }
 
-function Write-Log
-{
+function Write-Log {
 	<#
 		.SYNOPSIS
 			A swift logging function.
@@ -438,8 +433,7 @@ function Write-Log
 	catch { }
 	
 	# Write to screen
-	if (-not $Silent)
-	{
+	if (-not $Silent) {
 		$splat = @{ }
 		$splat['Object'] = $Message
 		if ($PSBoundParameters.ContainsKey('ForegroundColor')) { $splat['ForegroundColor'] = $ForegroundColor }
@@ -449,8 +443,7 @@ function Write-Log
 	}
 }
 
-function Stop-Execution
-{
+function Stop-Execution {
 	[CmdletBinding()]
 	Param (
 		[Parameter(Position = 1)]
@@ -464,8 +457,7 @@ function Stop-Execution
 #endregion Utility Functions
 
 #region Main Functions
-function Start-ServerEyeInstallation
-{
+function Start-ServerEyeInstallation {
 	[CmdletBinding()]
 	Param (
 		[bool]
@@ -506,8 +498,7 @@ function Start-ServerEyeInstallation
 	if (-not $Silent) { Write-Header }
 	
 	#region Really install OCC Connector?
-	if ((-not $Silent) -and ($Deploy -eq "All"))
-	{
+	if ((-not $Silent) -and ($Deploy -eq "All")) {
 		Write-Log -Message "Ensuring user is sure setting up an OCC Connector is the proper parameterization" -Silent $true
 		$yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes, this will be the only OCC-Connector.", "This will continue to set up the OCC-Connector."
 		$no = New-Object System.Management.Automation.Host.ChoiceDescription "&No, another OCC-Connector is already running.  ", "This will cancel everything and end this installer."
@@ -517,21 +508,17 @@ function Start-ServerEyeInstallation
 		$message = "Only one OCC-Connector should be installed in a network.`nIs this the only OCC-Connector?"
 		$result = $Host.UI.PromptForChoice($caption, $message, $choices, 2)
 		
-		switch ($result)
-		{
-			0
-			{
+		switch ($result) {
+			0 {
 				Write-Host "Great, let's continue."
 				Write-Log "User-Choice: Is sure. Continueing OCC Connector installation" -Silent $true
 			}
-			1
-			{
+			1 {
 				Write-Host "Then we better stop here. Use the switch '-Deploy SensorhubOnly' instead."
 				Write-Log "User-Choice: Is sure that wrong choice. Interrupting OCC Connector installation" -Silent $true -EventID 1001
 				Stop-Execution
 			}
-			2
-			{
+			2 {
 				Write-Host "Then we better stop here. Please make sure this is the only OCC-Connector."
 				Write-Log "User-Choice: Is unsure that no other OCC Connector is present. Interrupting OCC Connector installation" -Silent $true -EventID 1002
 				Stop-Execution
@@ -542,22 +529,19 @@ function Start-ServerEyeInstallation
 	
 	Write-Log "Starting installation process"
 	
-	if ($Download)
-	{
+	if ($Download) {
 		Write-Log "Starting Download Routine" -EventID 10
-		Download-SEInstallationFiles -BaseDownloadUrl $BaseDownloadUrl -Path $Path -Version $Version -proxy $WebProxy
+		Download-SEInstallationFiles -BaseDownloadUrl $BaseDownloadUrl -Path $Path -Version $Version -proxy $WebProxy -Silent $silent
 		Write-Log "Download Routine finished" -EventID 11
 	}
 	
-	if ($Install)
-	{
+	if ($Install) {
 		Write-Log "Starting Installation Routine" -EventID 12
-		Install-SEConnector -Path $Path
+		Install-SEConnector -Path $Path -Silent $Silent
 		Write-Log "Installation Routine finished" -EventID 13
 	}
 	
-	if ($Deploy -eq "All")
-	{
+	if ($Deploy -eq "All") {
 		Write-Log "Starting OCC Connector Configuration" -EventID 16
 		$HubConfig.ParentGuid = New-SEOccConnectorConfig -OCCConfig $OCCConfig
 		Write-Log "OCC Connector Configuration finished" -EventID 17
@@ -567,30 +551,61 @@ function Start-ServerEyeInstallation
 		Write-Log "Server-Eye Sensorhub Configuration finished" -EventID 15
 	}
 	
-	if ($Deploy -eq "SensorhubOnly")
-	{
+	if ($Deploy -eq "SensorhubOnly") {
 		Write-Log "Starting Server-Eye Sensorhub Configuration" -EventID 14
 		New-SESensorHubConfig -HubConfig $HubConfig
 		Write-Log "Server-Eye Sensorhub Configuration finished" -EventID 15
 	}
 	
-	if ($TemplateConfig.ApplyTemplate -and $TemplateConfig.TemplateId -ne $NULL)
-	{
+	if ($TemplateConfig.ApplyTemplate) {
 		Write-Log "Starting to apply template to the SensorHub" -EventID 16
 		$guid = Get-SensorHubId -ConfigFileCC $HubConfig.ConfFileCC
 		Apply-Template -Guid $guid -ApiKey $TemplateConfig.ApiKey -templateId $TemplateConfig.TemplateId
 		Write-Log "Finished to apply template to the SensorHub" -EventID 17
 	}
+
+
+	if ($DeleteDownloadedFiles) {
+      
+		$myfullpath = Get-Location
+
+		## Write-Host  $myfullpath
+       
+		if ($myfullpath -ne "") {        
+			$vendorPath = Join-path $myfullpath "Vendor.msi"
+			$setupPath = Join-path $myfullpath "ServerEyeSetup.exe"
+			$seMsiPath = Join-path $myfullpath "ServerEye.msi"
+        
+			if (Test-Path $vendorPath) {
+				Remove-Item $vendorPath
+			}
+        
+			if (Test-Path $setupPath) {
+				Remove-Item $setupPath
+			}
+        
+			if (Test-Path $seMsiPath) {
+				Remove-Item $seMsiPath
+			}
+		   
+			if (!$silent) {
+				Write-Host "Downloaded Files deleted!"
+			}
+		}
+	}
+	if (!$Silent) {
+		Write-Host "Finished!" -ForegroundColor Green 
 	
-	Write-Host "Finished!" -ForegroundColor Green
+		Write-Host "`nPlease visit https://$OCCServer to add Sensors`nHave fun!" 
 	
-	Write-Host "`nPlease visit https://$OCCServer to add Sensors`nHave fun!"
-	Write-Log "Installation successfully finished!" -EventID 1 -Silent $true
+	}
+
+	Write-Log "Installation successfully finished!" -EventID 1
+	
 	Stop-Execution -Number 0
 }
 
-function Apply-Template
-{
+function Apply-Template {
 	[CmdletBinding()]
 	Param (
 		[string]
@@ -607,16 +622,17 @@ function Apply-Template
 	$headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
 	$headers.Add("x-api-key", $apiKey)
 	
-	try
-	{
+	try {
 		$WebRequest = [System.Net.WebRequest]::Create($url)
-		if (!$Proxy){
-			$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+		if (!$Proxy) {
+			$WebProxy = New-Object System.Net.WebProxy($proxy, $true)
 			$WebRequest.Proxy = $WebProxy
-		}elseif (($Proxy.gettype()).Name -eq "WebProxy") {
+		}
+		elseif (($Proxy.gettype()).Name -eq "WebProxy") {
 			$WebRequest.Proxy = $WebProxy
-		}else {
-			$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
+		}
+		else {
+			$WebProxy = New-Object System.Net.WebProxy($proxy, $true)
 			$WebRequest.Proxy = $WebProxy
 		}
 		$WebRequest.Method = "POST"
@@ -628,8 +644,7 @@ function Apply-Template
 		$Data = $ReadStream.ReadToEnd()
 		
 	}
-	catch
-	{
+	catch {
 		#$result = $_.Exception.Response.GetResponseStream()
 		
 		Write-Log "Could not apply template. Error message: $($_.Exception) " -EventID 105 -ForegroundColor Red
@@ -639,8 +654,7 @@ function Apply-Template
 	Write-Log "Template applied" -EventID 106
 }
 
-function Get-SensorHubId
-{
+function Get-SensorHubId {
 	[CmdletBinding()]
 	Param (
 		$ConfigFileCC
@@ -651,21 +665,18 @@ function Get-SensorHubId
 	$i = 1200
 	Write-Log "Waiting for SensorHub GUID (max wait $i seconds)" -EventID 102 -Silent $Silent
 	
-	while ((-not ($guidFound = Select-String -Quiet -Path $ConfigFileCC -Pattern $pattern)) -and ($i -gt 0))
-	{
+	while ((-not ($guidFound = Select-String -Quiet -Path $ConfigFileCC -Pattern $pattern)) -and ($i -gt 0)) {
 		Start-Sleep -Seconds 1
 		$i--
 	}
 	
-	if ($guidFound)
-	{
+	if ($guidFound) {
 		$guid = Get-Content $ConfigFileCC | Select-String -Pattern $pattern
 		$guid = $guid -replace "guid=", ''
 		Write-Log "Found SensorHub with GUID $guid" -EventID 103 -Silent $Silent
 		
 	}
-	else
-	{
+	else {
 		Write-Log "Could not get GUID" -ForegroundColor Red -EventID 104 -Silent $Silent
 		Stop-Execution -Number 1
 	}
@@ -674,8 +685,7 @@ function Get-SensorHubId
 	$guid
 }
 
-function Download-SEInstallationFiles
-{
+function Download-SEInstallationFiles {
 	[CmdletBinding()]
 	Param (
 		[string]
@@ -687,50 +697,59 @@ function Download-SEInstallationFiles
 		[string]
 		$Path,
 
-		$proxy
+		$proxy,
+		
+		[bool]
+		$silent
 	)
 	
 	Write-Log "  getting current Server-Eye version... " -NoNewLine
 	Write-Log "  Version is:$version" -NoNewLine
+	Write-Log "done" -ForegroundColor Green
 
 	Write-Log "  downloading ServerEye.Setup... " -NoNewline
-	Download-SEFile "$BaseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" "$Path\ServerEyeSetup.exe" -proxy $proxy
+	Download-SEFile "$BaseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" "$Path\ServerEyeSetup.exe" -proxy $proxy -silent $silent
+	Write-Log "done" -ForegroundColor Green
 	
 	Write-Log "  downloading ServerEye.Vendor... " -NoNewline
-	Download-SEFile "$BaseDownloadUrl/vendor/$SE_vendor/Vendor.msi" "$Path\Vendor.msi" -proxy $proxy
+	Download-SEFile "$BaseDownloadUrl/vendor/$SE_vendor/Vendor.msi" "$Path\Vendor.msi" -proxy $proxy -silent $silent
+	Write-Log "done" -ForegroundColor Green
 	
 	Write-Log "  downloading ServerEye.Core... " -NoNewline
-	Download-SEFile "$BaseDownloadUrl/setup/ServerEye.msi" "$Path\ServerEye.msi" -proxy $proxy
+	Download-SEFile "$BaseDownloadUrl/setup/ServerEye.msi" "$Path\ServerEye.msi" -proxy $proxy -silent $silent
+	Write-Log "done" -ForegroundColor Green
 
 	
 }
 
-function Install-SEConnector
-{
+function Install-SEConnector {
 	[CmdletBinding()]
 	Param (
 		[string]
-		$Path
+		$Path,
+		
+		[bool]
+		$Silent
+		
 	)
 	
-	Write-Host "  installing Server-eye in Version:$SE_version...  " -NoNewline
-	if (-not (Test-Path "$Path\Vendor.msi"))
-	{
+	if (!$Silent) {
+		Write-Host "  installing Server-eye in Version:$SE_version...  " -NoNewline 
+	}
+	if (-not (Test-Path "$Path\Vendor.msi")) {
 		Write-Host "failed" -ForegroundColor Red
 		Write-Host "  The file Vendor.msi is missing." -ForegroundColor Red
 		Write-Log -Message "Installation failed, file not found: $Path\Vendor.msi" -EventID 666 -EntryType Error -Silent $true
 		Stop-Execution
 	}
 
-	if (-not (Test-Path "$Path\ServerEye.msi"))
-	{
+	if (-not (Test-Path "$Path\ServerEye.msi")) {
 		Write-Host "failed" -ForegroundColor Red
 		Write-Host "  The file ServerEye.msi is missing." -ForegroundColor Red
 		Write-Log -Message "Installation failed, file not found: $Path\ServerEye.msi" -EventID 666 -EntryType Error -Silent $true
 		Stop-Execution
 	}
-	if (-not (Test-Path "$Path\ServerEyeSetup.exe"))
-	{
+	if (-not (Test-Path "$Path\ServerEyeSetup.exe")) {
 		Write-Host "failed" -ForegroundColor Red
 		Write-Host "  The file ServerEyeSetup.exe is missing." -ForegroundColor Red
 		Write-Log -Message "Installation failed, file not found: $Path\ServerEyeSetup.exe" -EventID 666 -EntryType Error -Silent $true
@@ -738,17 +757,18 @@ function Install-SEConnector
 	}
 	
 	Start-Process -Wait -FilePath "$Path\ServerEyeSetup.exe" -ArgumentList "/install /passive /quiet /l C:\kits\se\log.txt"
-	Write-Host "done" -ForegroundColor Green
+	
+	if (!$Silent) {
+		Write-Host "done" -ForegroundColor Green
+	}
 }
 
-function New-SEOccConnectorConfig
-{
+function New-SEOccConnectorConfig {
 	[CmdletBinding()]
 	Param (
 		$OCCConfig
 	)
-	try
-	{
+	try {
 		Write-Log "  creating OCC-Connector configuration... " -NoNewline
 		
 		Set-Content -Path $OCCConfig.ConfFileMAC -ErrorAction Stop -Value @"
@@ -783,11 +803,9 @@ proxyPass=lo/VY9yIpiJ46BYKnAtljQ==|===
 		$guid = ""
 		$maxWait = 300
 		$wait = 0
-		while (($guid -eq "") -and ($wait -lt $maxWait))
-		{
+		while (($guid -eq "") -and ($wait -lt $maxWait)) {
 			$x = Get-Content $OCCConfig.ConfFileMAC | Select-String "guid"
-			if ($x.Line.Length -gt 1)
-			{
+			if ($x.Line.Length -gt 1) {
 				$splitX = $x.Line.ToString().Split("=")
 				$guid = $splitX[1]
 			}
@@ -795,8 +813,7 @@ proxyPass=lo/VY9yIpiJ46BYKnAtljQ==|===
 			$wait++
 		}
 		
-		if ($guid -eq "")
-		{
+		if ($guid -eq "") {
 			Write-Log "failed" -ForegroundColor Red
 			Write-Log "GUID was not generated in time." -ForegroundColor Red
 			Write-Log "Stopping Execution: OCC Connector Configuration failed" -EventID 666 -EntryType Error
@@ -806,22 +823,19 @@ proxyPass=lo/VY9yIpiJ46BYKnAtljQ==|===
 		Write-Log "done" -ForegroundColor Green
 		return $guid
 	}
-	catch
-	{
+	catch {
 		Write-Log "Stopping Execution: An error occured during OCC Connector Configuration: $($_.Exception.Message)" -EventID 666 -EntryType Error
 		Stop-Execution
 	}
 }
 
-function New-SESensorHubConfig
-{
+function New-SESensorHubConfig {
 	[CmdletBinding()]
 	Param (
 		$HubConfig
 	)
 	
-	try
-	{
+	try {
 		Write-Log "  creating Sensorhub configuration... " -NoNewline
 		
 		Set-Content -Path $HubConfig.ConfFileCC -ErrorAction Stop -Value @"
@@ -832,8 +846,7 @@ description=
 port=$($HubConfig.HubPort)
 "@
 
-		if ($HubConfig.ParentGuid)
-		{
+		if ($HubConfig.ParentGuid) {
 			"parentGuid=$($HubConfig.ParentGuid)" | Add-Content $HubConfig.ConfFileCC  -ErrorAction Stop
 		}
 		
@@ -848,15 +861,13 @@ port=$($HubConfig.HubPort)
 		
 		Write-Log "done" -ForegroundColor Green
 	}
-	catch
-	{
+	catch {
 		Write-Log "Stopping Execution: An error occured during Sensorhub Configuration: $($_.Exception.Message)" -EventID 666 -EntryType Error
 		Stop-Execution
 	}
 }
 
-function Download-SEFile
-{
+function Download-SEFile {
 	[CmdletBinding()]
 	Param (
 		[string]
@@ -865,102 +876,104 @@ function Download-SEFile
 		[string]
 		$TargetFile,
 
-		$proxy
+		$proxy,
+		
+		[bool]
+		$silent
 	)
-
-	if ([System.IO.File]::Exists($TargetFile))
-	{
-		Write-Log "using local file" -ForegroundColor Green
-	} else {	
-		try
-		{
-			
-			$uri = New-Object "System.Uri" "$url"
-			$request = [System.Net.HttpWebRequest]::Create($uri)
-			if (!$Proxy){
-				$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
-				$request.Proxy = $WebProxy
-			}elseif (($Proxy.gettype()).Name -eq "WebProxy") {
-				$request.Proxy = $WebProxy
-			}else {
-				$WebProxy = New-Object System.Net.WebProxy($proxy,$true)
-				$request.Proxy = $WebProxy
-			}
-			$request.set_Timeout(15000) #15 second timeout
-			$response = $request.GetResponse()
-			$totalLength = [System.Math]::Floor($response.get_ContentLength()/1024)
-			$responseStream = $response.GetResponseStream()
-			$targetStream = New-Object -TypeName System.IO.FileStream -ArgumentList $targetFile, Create
-			$buffer = new-object byte[] 10KB
+	
+	try {
+		
+		$uri = New-Object "System.Uri" "$url"
+		
+		$request = [System.Net.HttpWebRequest]::Create($uri)
+		if (!$Proxy) {
+			$WebProxy = New-Object System.Net.WebProxy($proxy, $true)
+			$request.Proxy = $WebProxy
+		}
+		elseif (($Proxy.gettype()).Name -eq "WebProxy") {
+			$request.Proxy = $WebProxy
+		}
+		else {
+			$WebProxy = New-Object System.Net.WebProxy($proxy, $true)
+			$request.Proxy = $WebProxy
+		}
+		$request.set_Timeout(15000) #15 second timeout
+		$response = $request.GetResponse()
+		$totalLength = [System.Math]::Floor($response.get_ContentLength()/1024)
+		$responseStream = $response.GetResponseStream()
+		$targetStream = New-Object -TypeName System.IO.FileStream -ArgumentList $targetFile, Create
+		$buffer = new-object byte[] 10KB
+		$count = $responseStream.Read($buffer, 0, $buffer.length)
+		$downloadedBytes = $count
+		
+		If ($silent) {
+			$ProgressPreference = 'SilentlyContinue'
+		}	
+		
+		while ($count -gt 0) {
+			$targetStream.Write($buffer, 0, $count)
 			$count = $responseStream.Read($buffer, 0, $buffer.length)
-			$downloadedBytes = $count
+			$downloadedBytes = $downloadedBytes + $count
 			
-			while ($count -gt 0)
-			{
-				$targetStream.Write($buffer, 0, $count)
-				$count = $responseStream.Read($buffer, 0, $buffer.length)
-				$downloadedBytes = $downloadedBytes + $count
-				Write-Progress -activity "Downloading file '$($url.split('/') | Select-Object -Last 1)'" -status "Downloaded ($([System.Math]::Floor($downloadedBytes/1024))K of $($totalLength)K): " -PercentComplete ((([System.Math]::Floor($downloadedBytes/1024)) / $totalLength) * 100)
-			}
-			
-			Write-Progress -activity "Finished downloading file '$($url.split('/') | Select-Object -Last 1)'" -Status "Done" -Completed
-			
-			$targetStream.Flush()
-			$targetStream.Close()
-			$targetStream.Dispose()
-			$responseStream.Dispose()
-
-			Write-Log "done" -ForegroundColor Green
+		
+			Write-Progress -activity "Downloading file '$($url.split('/') | Select-Object -Last 1)'" -status "Downloaded ($([System.Math]::Floor($downloadedBytes/1024))K of $($totalLength)K): " -PercentComplete ((([System.Math]::Floor($downloadedBytes/1024)) / $totalLength) * 100)
 			
 		}
-		catch
-		{
-			
-			#Write-Log -Message "Error downloading: $Url - Interrupting execution - $($_.Exception.Message)" -EventID 666 -EntryType Error
-			Stop-Execution
+		
+		
+		Write-Progress -activity "Finished downloading file '$($url.split('/') | Select-Object -Last 1)'" -Status "Done" -Completed
+		
+		if ($silent) {
+			$ProgressPreference = 'Continue'			
 		}
+		
+			
+		$targetStream.Flush()
+		$targetStream.Close()
+		$targetStream.Dispose()
+		$responseStream.Dispose()
+		
+	}
+	catch {
+		
+		#Write-Log -Message "Error downloading: $Url - Interrupting execution - $($_.Exception.Message)" -EventID 666 -EntryType Error
+		Stop-Execution
 	}
 }
 #endregion Main Functions
 
-:main do
-{
+:main do {
 	#region Validation
 	#region Elevation Check
-	If (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"))
-	{
+	If (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
 		Write-Log -Message "You do not have Administrator rights to run this script!`nPlease re-run this script as an Administrator!" -EntryType Error -EventID 666 -ForegroundColor Red
 		Stop-Execution
 	}
 	#endregion Elevation Check
 	
 	#region Invalid parameterization Check
-	if ($Offline -and $Download)
-	{
+	if ($Offline -and $Download) {
 		Write-Log -Message "Invalid Parameter combination: Cannot use offline mode and download at the same time." -EventID 666 -EntryType Error
 		Stop-Execution
 	}
 	
-	if ((-not $Install) -and (-not $Download) -and (-not $ApplyTemplate) -and (-not $PSBoundParameters.ContainsKey('Deploy')))
-	{
+	if ((-not $Install) -and (-not $Download) -and (-not $ApplyTemplate) -and (-not $PSBoundParameters.ContainsKey('Deploy'))) {
 		# Give guidance
 		if (-not $_SilentOverride) { Write-SEDeployHelp }
 		Write-Log -Message "Invalid Parameter combination: Must specify at least one of the following parameters: '-Download', '-Install' or '-Deploy'." -EventID 666 -EntryType Error
 		Stop-Execution
 	}
 	
-	if (($Silent) -and (-not $SilentOCCConfirmed) -and ($Deploy -eq "All"))
-	{
+	if (($Silent) -and (-not $SilentOCCConfirmed) -and ($Deploy -eq "All")) {
 		Write-Log -Message "Invalid Parameters: Cannot silently install OCC Connector without confirming this with the Parameter '-SilentOCCConfirmed'" -EventID 666 -EntryType Error
 		Stop-Execution
 	}
 	#endregion Invalid parameterization Check
 	
 	#region OSVersion Check
-	If ([environment]::OSVersion.Version.Major -lt 6)
-	{
-		if (-not $script:_SilentOverride)
-		{
+	If ([environment]::OSVersion.Version.Major -lt 6) {
+		if (-not $script:_SilentOverride) {
 			Write-Log -Message "Your operating system is not officially supported.`nThe install will most likely work but we can no longer provide support for Server-Eye on this system." -EntryType Warning -EventID 400
 			
 			$yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes, continue without support", "The install will continue, but we cannot help you if something doesn't work."
@@ -969,15 +982,13 @@ function Download-SEFile
 			$caption = ""
 			$message = "Do you still want to install Server-Eye on this computer?"
 			$result = $Host.UI.PromptForChoice($caption, $message, $choices, 1)
-			if ($result -eq 1)
-			{
+			if ($result -eq 1) {
 				Write-Log -Message "Execution interrupted by user" -EventID 666 -EntryType Warning -Silent $true
 				Stop-Execution
 			}
 			else { Write-Log -Message "Execution continued by user" -EventID 499 -EntryType Warning -Silent $true }
 		}
-		else
-		{
+		else {
 			Write-Log -Message "Non-Supported OS detected, interrupting Installation" -EventID 666 -EntryType Error
 			Stop-Execution
 		}
@@ -994,25 +1005,21 @@ function Download-SEFile
 	$seDataDir = "$env:ProgramData\ServerEye3"
 	
 	
-	if ((-not $SkipInstalledCheck) -and (($Install -or $PSBoundParameters.ContainsKey('Deploy')) -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir))))
-	{   
-        if(-not $SkipLogInstalledCheck){
-            Write-Log -Message "Server-Eye is or was installed on this system. This script works only on system without a previous Server-Eye installation" -EventID 666 -EntryType Error -ForegroundColor Red    
-        }
+	if ((-not $SkipInstalledCheck) -and (($Install -or $PSBoundParameters.ContainsKey('Deploy')) -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir)))) {   
+		if (-not $SkipLogInstalledCheck) {
+			Write-Log -Message "Server-Eye is or was installed on this system. This script works only on system without a previous Server-Eye installation" -EventID 666 -EntryType Error -ForegroundColor Red    
+		}
 		
 		Stop-Execution
 	}
 	#endregion validate already installed
 	
 	#region validate script version
-	if (-not $Offline)
-	{
-		try
-		{
+	if (-not $Offline) {
+		try {
 			Write-Log -Message "Checking for new script version"
 			$result = $wc.DownloadString("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersionCli")
-			if ($SE_version -lt $result)
-			{
+			if ($SE_version -lt $result) {
 				Write-Log -Message @"
 This version of the Server-Eye deployment script is no longer supported.
 Please update to the newest version with this command:
@@ -1022,34 +1029,28 @@ Invoke-WebRequest "$($SE_baseDownloadUrl)/$($SE_cloudIdentifier)/Deploy-ServerEy
 			}
 		}
 		# Failing the update-check is not necessarily a game-over. Failure to download the actual packages will terminate script
-		catch
-		{
+		catch {
 			Write-Log -Message "Failed to access version information: $($_.Exception.Message)" -EventID 404 -EntryType Warning
 		}
 	}
 	#endregion validate script version
 	
 	#region Validate DeployPath
-	if (-not (Test-Path $DeployPath))
-	{
-		try
-		{
+	if (-not (Test-Path $DeployPath)) {
+		try {
 			$folder = New-Item -Path $DeployPath -ItemType 'Directory' -Force -Confirm:$false
-			if ((-not $folder.Exists) -or (-not $folder.PSIsContainer))
-			{
+			if ((-not $folder.Exists) -or (-not $folder.PSIsContainer)) {
 				Write-Log "Stopping Execution: Deployment Path: $DeployPath could not be created."
 				Stop-Execution
 			}
 			else { $DeployPath = $folder.FullName }
 		}
-		catch
-		{
+		catch {
 			Write-Log "Stopping Execution: Deployment Path: $DeployPath could not be created: $($_.Exception.Message)"
 			Stop-Execution
 		}
 	}
-	else
-	{
+	else {
 		$DeployPath = Get-Item -Path $DeployPath | Select-Object -ExpandProperty FullName -First 1
 	}
 	#endregion Validate DeployPath
@@ -1057,18 +1058,216 @@ Invoke-WebRequest "$($SE_baseDownloadUrl)/$($SE_cloudIdentifier)/Deploy-ServerEy
 	
 	# Finally launch into the main execution
 	$params = @{
-		Deploy = $Deploy
-		Download = $Download
-		Install = $Install
-		OCCServer = $SE_occServer
+		Deploy          = $Deploy
+		Download        = $Download
+		Install         = $Install
+		OCCServer       = $SE_occServer
 		BaseDownloadUrl = $SE_baseDownloadUrl
-		Version = $SE_version
-		Path = $DeployPath
-		OCCConfig = $OCCConfig
-		HubConfig = $HubConfig
-		TemplateConfig = $TemplateConfig
-		proxy = $WebProxy
+		Version         = $SE_version
+		Path            = $DeployPath
+		OCCConfig       = $OCCConfig
+		HubConfig       = $HubConfig
+		TemplateConfig  = $TemplateConfig
+		proxy           = $WebProxy
 	}
 	Start-ServerEyeInstallation @params
 }
 while ($false)
+# SIG # Begin signature block
+# MIIknAYJKoZIhvcNAQcCoIIkjTCCJIkCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
+# gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUuJBctOHXyHz6m0ZNcyxKtnvS
+# IaOggh+oMIIEhDCCA2ygAwIBAgIQQhrylAmEGR9SCkvGJCanSzANBgkqhkiG9w0B
+# AQUFADBvMQswCQYDVQQGEwJTRTEUMBIGA1UEChMLQWRkVHJ1c3QgQUIxJjAkBgNV
+# BAsTHUFkZFRydXN0IEV4dGVybmFsIFRUUCBOZXR3b3JrMSIwIAYDVQQDExlBZGRU
+# cnVzdCBFeHRlcm5hbCBDQSBSb290MB4XDTA1MDYwNzA4MDkxMFoXDTIwMDUzMDEw
+# NDgzOFowgZUxCzAJBgNVBAYTAlVTMQswCQYDVQQIEwJVVDEXMBUGA1UEBxMOU2Fs
+# dCBMYWtlIENpdHkxHjAcBgNVBAoTFVRoZSBVU0VSVFJVU1QgTmV0d29yazEhMB8G
+# A1UECxMYaHR0cDovL3d3dy51c2VydHJ1c3QuY29tMR0wGwYDVQQDExRVVE4tVVNF
+# UkZpcnN0LU9iamVjdDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAM6q
+# gT+jo2F4qjEAVZURnicPHxzfOpuCaDDASmEd8S8O+r5596Uj71VRloTN2+O5bj4x
+# 2AogZ8f02b+U60cEPgLOKqJdhwQJ9jCdGIqXsqoc/EHSoTbL+z2RuufZcDX65OeQ
+# w5ujm9M89RKZd7G3CeBo5hy485RjiGpq/gt2yb70IuRnuasaXnfBhQfdDWy/7gbH
+# d2pBnqcP1/vulBe3/IW+pKvEHDHd17bR5PDv3xaPslKT16HUiaEHLr/hARJCHhrh
+# 2JU022R5KP+6LhHC5ehbkkj7RwvCbNqtMoNB86XlQXD9ZZBt+vpRxPm9lisZBCzT
+# bafc8H9vg2XiaquHhnUCAwEAAaOB9DCB8TAfBgNVHSMEGDAWgBStvZh6NLQm9/rE
+# JlTvA73gJMtUGjAdBgNVHQ4EFgQU2u1kdBScFDyr3ZmpvVsoTYs8ydgwDgYDVR0P
+# AQH/BAQDAgEGMA8GA1UdEwEB/wQFMAMBAf8wEQYDVR0gBAowCDAGBgRVHSAAMEQG
+# A1UdHwQ9MDswOaA3oDWGM2h0dHA6Ly9jcmwudXNlcnRydXN0LmNvbS9BZGRUcnVz
+# dEV4dGVybmFsQ0FSb290LmNybDA1BggrBgEFBQcBAQQpMCcwJQYIKwYBBQUHMAGG
+# GWh0dHA6Ly9vY3NwLnVzZXJ0cnVzdC5jb20wDQYJKoZIhvcNAQEFBQADggEBAE1C
+# L6bBiusHgJBYRoz4GTlmKjxaLG3P1NmHVY15CxKIe0CP1cf4S41VFmOtt1fcOyu9
+# 08FPHgOHS0Sb4+JARSbzJkkraoTxVHrUQtr802q7Zn7Knurpu9wHx8OSToM8gUmf
+# ktUyCepJLqERcZo20sVOaLbLDhslFq9s3l122B9ysZMmhhfbGN6vRenf+5ivFBjt
+# pF72iZRF8FUESt3/J90GSkD2tLzx5A+ZArv9XQ4uKMG+O18aP5cQhLwWPtijnGMd
+# ZstcX9o+8w8KCTUi29vAPwD55g1dZ9H9oB4DK9lA977Mh2ZUgKajuPUZYtXSJrGY
+# Ju6ay0SnRVqBlRUa9VEwggTmMIIDzqADAgECAhBiXE2QjNVC+6supXM/8VQZMA0G
+# CSqGSIb3DQEBBQUAMIGVMQswCQYDVQQGEwJVUzELMAkGA1UECBMCVVQxFzAVBgNV
+# BAcTDlNhbHQgTGFrZSBDaXR5MR4wHAYDVQQKExVUaGUgVVNFUlRSVVNUIE5ldHdv
+# cmsxITAfBgNVBAsTGGh0dHA6Ly93d3cudXNlcnRydXN0LmNvbTEdMBsGA1UEAxMU
+# VVROLVVTRVJGaXJzdC1PYmplY3QwHhcNMTEwNDI3MDAwMDAwWhcNMjAwNTMwMTA0
+# ODM4WjB6MQswCQYDVQQGEwJHQjEbMBkGA1UECBMSR3JlYXRlciBNYW5jaGVzdGVy
+# MRAwDgYDVQQHEwdTYWxmb3JkMRowGAYDVQQKExFDT01PRE8gQ0EgTGltaXRlZDEg
+# MB4GA1UEAxMXQ09NT0RPIFRpbWUgU3RhbXBpbmcgQ0EwggEiMA0GCSqGSIb3DQEB
+# AQUAA4IBDwAwggEKAoIBAQCqgvGEqVvYcbXSXSvt9BMgDPmb6dGPdF5u7uspSNjI
+# vizrCmFgzL2SjXzddLsKnmhOqnUkcyeuN/MagqVtuMgJRkx+oYPp4gNgpCEQJ0Ca
+# WeFtrz6CryFpWW1jzM6x9haaeYOXOh0Mr8l90U7Yw0ahpZiqYM5V1BIR8zsLbMaI
+# upUu76BGRTl8rOnjrehXl1/++8IJjf6OmqU/WUb8xy1dhIfwb1gmw/BC/FXeZb5n
+# OGOzEbGhJe2pm75I30x3wKoZC7b9So8seVWx/llaWm1VixxD9rFVcimJTUA/vn9J
+# AV08m1wI+8ridRUFk50IYv+6Dduq+LW/EDLKcuoIJs0ZAgMBAAGjggFKMIIBRjAf
+# BgNVHSMEGDAWgBTa7WR0FJwUPKvdmam9WyhNizzJ2DAdBgNVHQ4EFgQUZCKGtkqJ
+# yQQP0ARYkiuzbj0eJ2wwDgYDVR0PAQH/BAQDAgEGMBIGA1UdEwEB/wQIMAYBAf8C
+# AQAwEwYDVR0lBAwwCgYIKwYBBQUHAwgwEQYDVR0gBAowCDAGBgRVHSAAMEIGA1Ud
+# HwQ7MDkwN6A1oDOGMWh0dHA6Ly9jcmwudXNlcnRydXN0LmNvbS9VVE4tVVNFUkZp
+# cnN0LU9iamVjdC5jcmwwdAYIKwYBBQUHAQEEaDBmMD0GCCsGAQUFBzAChjFodHRw
+# Oi8vY3J0LnVzZXJ0cnVzdC5jb20vVVROQWRkVHJ1c3RPYmplY3RfQ0EuY3J0MCUG
+# CCsGAQUFBzABhhlodHRwOi8vb2NzcC51c2VydHJ1c3QuY29tMA0GCSqGSIb3DQEB
+# BQUAA4IBAQARyT3hBeg7ZazJdDEDt9qDOMaSuv3N+Ntjm30ekKSYyNlYaDS18Ash
+# U55ZRv1jhd/+R6pw5D9eCJUoXxTx/SKucOS38bC2Vp+xZ7hog16oYNuYOfbcSV4T
+# p5BnS+Nu5+vwQ8fQL33/llqnA9abVKAj06XCoI75T9GyBiH+IV0njKCv2bBS7vzI
+# 7bec8ckmONalMu1Il5RePeA9NbSwyVivx1j/YnQWkmRB2sqo64sDvcFOrh+RMrjh
+# JDt77RRoCYaWKMk7yWwowiVp9UphreAn+FOndRWwUTGw8UH/PlomHmB+4uNqOZrE
+# 6u4/5rITP1UDBE0LkHLU6/u8h5BRsjgZMIIE/jCCA+agAwIBAgIQK3PbdGMRTFpb
+# MkryMFdySTANBgkqhkiG9w0BAQUFADB6MQswCQYDVQQGEwJHQjEbMBkGA1UECBMS
+# R3JlYXRlciBNYW5jaGVzdGVyMRAwDgYDVQQHEwdTYWxmb3JkMRowGAYDVQQKExFD
+# T01PRE8gQ0EgTGltaXRlZDEgMB4GA1UEAxMXQ09NT0RPIFRpbWUgU3RhbXBpbmcg
+# Q0EwHhcNMTkwNTAyMDAwMDAwWhcNMjAwNTMwMTA0ODM4WjCBgzELMAkGA1UEBhMC
+# R0IxGzAZBgNVBAgMEkdyZWF0ZXIgTWFuY2hlc3RlcjEQMA4GA1UEBwwHU2FsZm9y
+# ZDEYMBYGA1UECgwPU2VjdGlnbyBMaW1pdGVkMSswKQYDVQQDDCJTZWN0aWdvIFNI
+# QS0xIFRpbWUgU3RhbXBpbmcgU2lnbmVyMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A
+# MIIBCgKCAQEAv1I2gjrcdDcNeNV/FlAZZu26GpnRYziaDGayQNungFC/aS42Lwpn
+# P0ChSopjNZvQGcx0qhcZkSu1VSAZ+8AaOm3KOZuC8rqVoRrYNMe4iXtwiHBRZmns
+# d/7GlHJ6zyWB7TSCmt8IFTcxtG2uHL8Y1Q3P/rXhxPuxR3Hp+u5jkezx7M5ZBBF8
+# rgtgU+oq874vAg/QTF0xEy8eaQ+Fm0WWwo0Si2euH69pqwaWgQDfkXyVHOaeGWTf
+# dshgRC9J449/YGpFORNEIaW6+5H6QUDtTQK0S3/f4uA9uKrzGthBg49/M+1BBuJ9
+# nj9ThI0o2t12xr33jh44zcDLYCQD3npMqwIDAQABo4IBdDCCAXAwHwYDVR0jBBgw
+# FoAUZCKGtkqJyQQP0ARYkiuzbj0eJ2wwHQYDVR0OBBYEFK7u2WC6XvUsARL9jo2y
+# VXI1Rm/xMA4GA1UdDwEB/wQEAwIGwDAMBgNVHRMBAf8EAjAAMBYGA1UdJQEB/wQM
+# MAoGCCsGAQUFBwMIMEAGA1UdIAQ5MDcwNQYMKwYBBAGyMQECAQMIMCUwIwYIKwYB
+# BQUHAgEWF2h0dHBzOi8vc2VjdGlnby5jb20vQ1BTMEIGA1UdHwQ7MDkwN6A1oDOG
+# MWh0dHA6Ly9jcmwuc2VjdGlnby5jb20vQ09NT0RPVGltZVN0YW1waW5nQ0FfMi5j
+# cmwwcgYIKwYBBQUHAQEEZjBkMD0GCCsGAQUFBzAChjFodHRwOi8vY3J0LnNlY3Rp
+# Z28uY29tL0NPTU9ET1RpbWVTdGFtcGluZ0NBXzIuY3J0MCMGCCsGAQUFBzABhhdo
+# dHRwOi8vb2NzcC5zZWN0aWdvLmNvbTANBgkqhkiG9w0BAQUFAAOCAQEAen+pStKw
+# pBwdDZ0tXMauWt2PRR3wnlyQ9l6scP7T2c3kGaQKQ3VgaoOkw5mEIDG61v5MzxP4
+# EPdUCX7q3NIuedcHTFS3tcmdsvDyHiQU0JzHyGeqC2K3tPEG5OfkIUsZMpk0uRlh
+# dwozkGdswIhKkvWhQwHzrqJvyZW9ljj3g/etfCgf8zjfjiHIcWhTLcuuquIwF4Mi
+# KRi14YyJ6274fji7kE+5Xwc0EmuX1eY7kb4AFyFu4m38UnnvgSW6zxPQ+90rzYG2
+# V4lO8N3zC0o0yoX/CLmWX+sRE+DhxQOtVxzhXZIGvhvIPD+lIJ9p0GnBxcLJPufF
+# cvfqG5bilK+GLjCCBVUwggQ9oAMCAQICEDYundkGUmnZYKGqqVRkDDgwDQYJKoZI
+# hvcNAQELBQAwfDELMAkGA1UEBhMCR0IxGzAZBgNVBAgTEkdyZWF0ZXIgTWFuY2hl
+# c3RlcjEQMA4GA1UEBxMHU2FsZm9yZDEYMBYGA1UEChMPU2VjdGlnbyBMaW1pdGVk
+# MSQwIgYDVQQDExtTZWN0aWdvIFJTQSBDb2RlIFNpZ25pbmcgQ0EwHhcNMTkwMzE0
+# MDAwMDAwWhcNMjEwMzEzMjM1OTU5WjCBpzELMAkGA1UEBhMCREUxDjAMBgNVBBEM
+# BTY2NTcxMREwDwYDVQQIDAhTYWFybGFuZDESMBAGA1UEBwwJRXBwZWxib3JuMRkw
+# FwYDVQQJDBBLb3NzbWFuc3RyYXNzZSA3MSIwIAYDVQQKDBlLcsOkbWVyIElUIFNv
+# bHV0aW9ucyBHbWJIMSIwIAYDVQQDDBlLcsOkbWVyIElUIFNvbHV0aW9ucyBHbWJI
+# MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAs+f9rpEc+fjIZAYqOnrM
+# kRYOoVtXoSya3uOqTtqdfXqQHuv4Ap40JTFyADNmHabJ7fGfCxFCq1axhjg0Ly0O
+# n7KzReBQz4Y+M3OR+cByP0jjAbtbugzbVrySif1AX55JPQm60c5MxnklWfNU4l0/
+# ieN/lTYV7SfY19fbXCxN1Z8mgkBZ+KbFcBes30D2DsoT/u4kb0oMxBjNL8+aIvUq
+# eFKm8LLrNnuKGfn0++IghY/X2F3j/6NXyjoldohW5OHFTASMNYTQjZFvXfPAu8or
+# 7R+BOepmGF5eUjpNpOCjgAmj46RCOCGX3KCf8iyhY88s8oNrvdKaBCe0mYpzUnBQ
+# CQIDAQABo4IBpTCCAaEwHwYDVR0jBBgwFoAUDuE6qFM6MdWKvsG7rWcaA4WtNA4w
+# HQYDVR0OBBYEFJIH3xQ1u7lnPAdIlJzhOJWhhIiXMA4GA1UdDwEB/wQEAwIHgDAM
+# BgNVHRMBAf8EAjAAMBMGA1UdJQQMMAoGCCsGAQUFBwMDMBEGCWCGSAGG+EIBAQQE
+# AwIEEDBABgNVHSAEOTA3MDUGDCsGAQQBsjEBAgEDAjAlMCMGCCsGAQUFBwIBFhdo
+# dHRwczovL3NlY3RpZ28uY29tL0NQUzBDBgNVHR8EPDA6MDigNqA0hjJodHRwOi8v
+# Y3JsLnNlY3RpZ28uY29tL1NlY3RpZ29SU0FDb2RlU2lnbmluZ0NBLmNybDBzBggr
+# BgEFBQcBAQRnMGUwPgYIKwYBBQUHMAKGMmh0dHA6Ly9jcnQuc2VjdGlnby5jb20v
+# U2VjdGlnb1JTQUNvZGVTaWduaW5nQ0EuY3J0MCMGCCsGAQUFBzABhhdodHRwOi8v
+# b2NzcC5zZWN0aWdvLmNvbTAdBgNVHREEFjAUgRJpbmZvQGtyYWVtZXItaXQuZGUw
+# DQYJKoZIhvcNAQELBQADggEBAASLXBPt/BJ0qNRYiALS1Hw9aSynGBIxg6CJbIFr
+# q7qNfmYIdPnYtLrm07y96eSSr8rMuG8ncyssS4gG1PtjNnOrdTSGmessr8ad2NUU
+# H+9iCHA6qyKa85n2xCptlVtcAIKoIJd8M7CPYXRTScSHOvw5gd2flOt4PGleMoXq
+# on6FxLUyi8usK+DpkjJ8add9wTjifksLIYMjgJFhDkuyNM8+sO6I0zDos8AT+xMV
+# GD3PjSoqmzbYa2dzIrX1Z9gXQEK6u9/MnewGbyillPDCY0E+azWNd9VeC/O9xRO3
+# nFIvNtXoFvEdcu/mPd+P0SAUTChQ/iqkBvfEDMhus8PdkWwwggXeMIIDxqADAgEC
+# AhAB/W0w/KPKUagbvGQONQMtMA0GCSqGSIb3DQEBDAUAMIGIMQswCQYDVQQGEwJV
+# UzETMBEGA1UECBMKTmV3IEplcnNleTEUMBIGA1UEBxMLSmVyc2V5IENpdHkxHjAc
+# BgNVBAoTFVRoZSBVU0VSVFJVU1QgTmV0d29yazEuMCwGA1UEAxMlVVNFUlRydXN0
+# IFJTQSBDZXJ0aWZpY2F0aW9uIEF1dGhvcml0eTAeFw0xMDAyMDEwMDAwMDBaFw0z
+# ODAxMTgyMzU5NTlaMIGIMQswCQYDVQQGEwJVUzETMBEGA1UECBMKTmV3IEplcnNl
+# eTEUMBIGA1UEBxMLSmVyc2V5IENpdHkxHjAcBgNVBAoTFVRoZSBVU0VSVFJVU1Qg
+# TmV0d29yazEuMCwGA1UEAxMlVVNFUlRydXN0IFJTQSBDZXJ0aWZpY2F0aW9uIEF1
+# dGhvcml0eTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAIASZRc2DsPb
+# CLPQrFcNdu3NJ9NMrVCDYeKqIE0JLWQJ3M6Jn8w9qez2z8Hc8dOx1ns3KBErR9o5
+# xrw6GbRfpr19naNjQrZ28qk7K5H44m/Q7BYgkAk+4uh0yRi0kdRiZNt/owbxiBhq
+# kCI8vP4T8IcUe/bkH47U5FHGEWdGCFHLhhRUP7wz/n5snP8WnRi9UY41pqdmyHJn
+# 2yFmsdSbeAPAUDrozPDcvJ5M/q8FljUfV1q3/875PbcstvZU3cjnEjpNrkyKt1ya
+# tLcgPcp/IjSufjtoZgFE5wFORlObM2D3lL5TN5BzQ/Myw1Pv26r+dE5px2uMYJPe
+# xMcM3+EyrsyTO1F4lWeL7j1W/gzQaQ8bD/MlJmszbfduR/pzQ+V+DqVmsSl8MoRj
+# VYnEDcGTVDAZE6zTfTen6106bDVc20HXEtqpSQvf2ICKCZNijrVmzyWIzYS4sT+k
+# OQ/ZAp7rEkyVfPNrBaleFoPMuGfi6BOdzFuC00yz7Vv/3uVzrCM7LQC/NVV0CUnY
+# SVgaf5I25lGSDvMmfRxNF7zJ7EMm0L9BX0CpRET0medXh55QH1dUqD79dGMvsVBl
+# CeZYQi5DGky08CVHWfoEHpPUJkZKUIGy3r54t/xnFeHJV4QeD2PW6WK61l9VLupc
+# xigIBCU5uA4rqfJMlxwHPw1S9e3vL4IPAgMBAAGjQjBAMB0GA1UdDgQWBBRTeb9a
+# qitKz1SA4dibwJ3ysgNmyzAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB
+# /zANBgkqhkiG9w0BAQwFAAOCAgEAXNR8Dc/3AX1BmWUMc8VSn8v4z5kGfxvaQxWf
+# ngJVV5YU8VI8J4eUKO0fOgE3onb8U1DAhJvGa066jCFPoo5VYpHzaRXYvIjjxKoL
+# /e+o6UtVKgYgbVV4KRnuXzBcSyQRVf8kmm5eKivuC02ff/cBOJQUlUMHCftgqe4c
+# qxKMoJpep5hqWW2LPwj7yNFFrxgVZJASD3MoLsXiJE78WOzw9EX+IrPrL47S2UVh
+# BcGXb6h2co+LjDavvw0FznGN5qZvH2ymcWLF2NCDcgzxZxGJDJwTTHI037zVcd+q
+# cd3huWyMPBJdZdq9VxK2Q2v/5d5NZhFRz5mu7Be26HGRjN5J/t01caIVJ5Qcz2Hj
+# Jrtvo2clIV3m3R0LLmgbO4Kv7INnhdSYUXSxuZmAif9/eBlceUpgLpJArkw3KizJ
+# x2LIDl33NlvK4CUlAbTdGgecdwA/0NzV7D3U+rs/zIXWb3+pLd+5Avf1l5q1NdrD
+# Z7CHSqkoniOO/1wna+GwT/MH7gAu1FmHy1JBler0R9fuZEFVfI1ZApXdYp3Cue5a
+# KHSEpZu3kMcMB9/1iTZ0MtYowbCwC+CcTMMc1vzjabVHRoEvooKr02NEcMSN/y0z
+# uq2Pe7VwiK4+Gc9AKNj8yJC7XZki9VLmWMUfiDFD7ogd18aOPENqHacY3n09FvFi
+# +cqQqP0wggX1MIID3aADAgECAhAdokgwb5smGNCC4JZ9M9NqMA0GCSqGSIb3DQEB
+# DAUAMIGIMQswCQYDVQQGEwJVUzETMBEGA1UECBMKTmV3IEplcnNleTEUMBIGA1UE
+# BxMLSmVyc2V5IENpdHkxHjAcBgNVBAoTFVRoZSBVU0VSVFJVU1QgTmV0d29yazEu
+# MCwGA1UEAxMlVVNFUlRydXN0IFJTQSBDZXJ0aWZpY2F0aW9uIEF1dGhvcml0eTAe
+# Fw0xODExMDIwMDAwMDBaFw0zMDEyMzEyMzU5NTlaMHwxCzAJBgNVBAYTAkdCMRsw
+# GQYDVQQIExJHcmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcTB1NhbGZvcmQxGDAW
+# BgNVBAoTD1NlY3RpZ28gTGltaXRlZDEkMCIGA1UEAxMbU2VjdGlnbyBSU0EgQ29k
+# ZSBTaWduaW5nIENBMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhiKN
+# MoV6GJ9J8JYvYwgeLdx8nxTP4ya2JWYpQIZURnQxYsUQ7bKHJ6aZy5UwwFb1pHXG
+# qQ5QYqVRkRBq4Etirv3w+Bisp//uLjMg+gwZiahse60Aw2Gh3GllbR9uJ5bXl1GG
+# pvQn5Xxqi5UeW2DVftcWkpwAL2j3l+1qcr44O2Pej79uTEFdEiAIWeg5zY/S1s8G
+# tFcFtk6hPldrH5i8xGLWGwuNx2YbSp+dgcRyQLXiX+8LRf+jzhemLVWwt7C8VGqd
+# vI1WU8bwunlQSSz3A7n+L2U18iLqLAevRtn5RhzcjHxxKPP+p8YU3VWRbooRDd8G
+# JJV9D6ehfDrahjVh0wIDAQABo4IBZDCCAWAwHwYDVR0jBBgwFoAUU3m/WqorSs9U
+# gOHYm8Cd8rIDZsswHQYDVR0OBBYEFA7hOqhTOjHVir7Bu61nGgOFrTQOMA4GA1Ud
+# DwEB/wQEAwIBhjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdJQQWMBQGCCsGAQUF
+# BwMDBggrBgEFBQcDCDARBgNVHSAECjAIMAYGBFUdIAAwUAYDVR0fBEkwRzBFoEOg
+# QYY/aHR0cDovL2NybC51c2VydHJ1c3QuY29tL1VTRVJUcnVzdFJTQUNlcnRpZmlj
+# YXRpb25BdXRob3JpdHkuY3JsMHYGCCsGAQUFBwEBBGowaDA/BggrBgEFBQcwAoYz
+# aHR0cDovL2NydC51c2VydHJ1c3QuY29tL1VTRVJUcnVzdFJTQUFkZFRydXN0Q0Eu
+# Y3J0MCUGCCsGAQUFBzABhhlodHRwOi8vb2NzcC51c2VydHJ1c3QuY29tMA0GCSqG
+# SIb3DQEBDAUAA4ICAQBNY1DtRzRKYaTb3moqjJvxAAAeHWJ7Otcywvaz4GOz+2EA
+# iJobbRAHBE++uOqJeCLrD0bs80ZeQEaJEvQLd1qcKkE6/Nb06+f3FZUzw6GDKLfe
+# L+SU94Uzgy1KQEi/msJPSrGPJPSzgTfTt2SwpiNqWWhSQl//BOvhdGV5CPWpk95r
+# cUCZlrp48bnI4sMIFrGrY1rIFYBtdF5KdX6luMNstc/fSnmHXMdATWM19jDTz7UK
+# DgsEf6BLrrujpdCEAJM+U100pQA1aWy+nyAlEA0Z+1CQYb45j3qOTfafDh7+B1ES
+# ZoMmGUiVzkrJwX/zOgWb+W/fiH/AI57SHkN6RTHBnE2p8FmyWRnoao0pBAJ3fEtL
+# zXC+OrJVWng+vLtvAxAldxU0ivk2zEOS5LpP8WKTKCVXKftRGcehJUBqhFfGsp2x
+# vBwK2nxnfn0u6ShMGH7EezFBcZpLKewLPVdQ0srd/Z4FUeVEeN0B3rF1mA1UJP3w
+# TuPi+IO9crrLPTru8F4XkmhtyGH5pvEqCgulufSe7pgyBYWe6/mDKdPGLH29Oncu
+# izdCoGqC7TtKqpQQpOEN+BfFtlp5MxiS47V1+KHpjgolHuQe8Z9ahyP/n6RRnvs5
+# gBHN27XEp6iAb+VT1ODjosLSWxr6MiYtaldwHDykWC6j81tLB9wyWfOHpxptWDGC
+# BF4wggRaAgEBMIGQMHwxCzAJBgNVBAYTAkdCMRswGQYDVQQIExJHcmVhdGVyIE1h
+# bmNoZXN0ZXIxEDAOBgNVBAcTB1NhbGZvcmQxGDAWBgNVBAoTD1NlY3RpZ28gTGlt
+# aXRlZDEkMCIGA1UEAxMbU2VjdGlnbyBSU0EgQ29kZSBTaWduaW5nIENBAhA2Lp3Z
+# BlJp2WChqqlUZAw4MAkGBSsOAwIaBQCgeDAYBgorBgEEAYI3AgEMMQowCKACgACh
+# AoAAMBkGCSqGSIb3DQEJAzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAM
+# BgorBgEEAYI3AgEVMCMGCSqGSIb3DQEJBDEWBBS8HQxaqlbzsoVUxfgTLaLKdAU0
+# 0zANBgkqhkiG9w0BAQEFAASCAQA1DPRc1JS4P9uq1/1Rm5e+uXdImiixhi5AVmIW
+# 9Dqt03HYqF0cVOVqh5qhRmwUfIsFzYEyhEh4YpDf4xKTgGNIgDx002kzlFAKzmAs
+# ovkbtNE64D0YTLnPLUx1JgoInjHYc57D+eRyXjer8RzSdy+nKJg2uqeA9FiE92ep
+# sbOYBVfahHQuUQhuzFDoX/9kKZrSzjwMHXkAVsqxYlt+woeuF4vIcRIq3TI0bWgC
+# LNUVWTUBvN1Kg2YbQFqutZQLQbqe3Kl+ewhD22ThCOay4qp0WmNdoUmRpu6HBBV0
+# mA4UGj8+3og+t0hkDEUfCnZqQhcZVtHg/u0IcifKcVmiQUVtoYICKDCCAiQGCSqG
+# SIb3DQEJBjGCAhUwggIRAgEBMIGOMHoxCzAJBgNVBAYTAkdCMRswGQYDVQQIExJH
+# cmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcTB1NhbGZvcmQxGjAYBgNVBAoTEUNP
+# TU9ETyBDQSBMaW1pdGVkMSAwHgYDVQQDExdDT01PRE8gVGltZSBTdGFtcGluZyBD
+# QQIQK3PbdGMRTFpbMkryMFdySTAJBgUrDgMCGgUAoF0wGAYJKoZIhvcNAQkDMQsG
+# CSqGSIb3DQEHATAcBgkqhkiG9w0BCQUxDxcNMjAwNTA1MTQyODQ0WjAjBgkqhkiG
+# 9w0BCQQxFgQUrrvE9Oz4Zc5XyfOUAC+dqt6fD+MwDQYJKoZIhvcNAQEBBQAEggEA
+# vaw87LW6tGM35E3pGMVc0hVJQwpXBB1Cp3Onxfv+G4eT2FwQCQhuwvBunOQAzO3i
+# gEa48dfRIQQB1ouep9TzxEjKPr3mZ+SET846xt6sPaa1rL+J856p6Aqdjyq8dVdm
+# x8aztx7pwOGJH/ZAWD57a36KJ6VxfyrODH4hsSLUbCCvi2ufLPZgRfgJTp/vXmGw
+# oS5MHVAuf6wkipYbyNzxkpb7JJbMuyDvYEDIbjSzu2uaDMHhmxuyfdz4VqIbsSMz
+# LK/6ptEtQ76DHbFxnv+JrDi29Zvu5dCy2LoRyQJym8NhKhmtq+VWtkKLhXNBVL7t
+# gGqJPngbcpfSmAqdee0R6Q==
+# SIG # End signature block
