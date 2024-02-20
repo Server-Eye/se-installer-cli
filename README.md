@@ -4,7 +4,6 @@ This is a Powershell script. Powershell in version 3 or higher is recommended.
 
 Instructions on how to install the current Powershell can be found here: https://technet.microsoft.com/library/Hh847837.aspx
 
-test
 
 ## Introduction
 This script will help to install Server-Eye on systems without a full UI or when a full interactive setup is not needed.
