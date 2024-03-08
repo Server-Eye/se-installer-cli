@@ -42,15 +42,16 @@ if ($services) {
     $SECCService = Get-Service -Name CCService
     $SEMACService = Get-Service -Name MACService
     $SERecovery = Get-Service -Name SE3Recovery
-    while ($SECCService.Status -ne "Stopped" -or $SEMACService.Status -ne "Stopped" -or $SERecovery.Status -ne "Stopped") {
-        Start-Sleep -Seconds 3
+    for ($i = 0; $i -le 20; $i++) {
         $SECCService = Get-Service -Name CCService
         $SEMACService = Get-Service -Name MACService
         $SERecovery = Get-Service -Name SE3Recovery
-        $i++
-        if ($i -gt 20) {
-            exit
+    
+        if ($SECCService.Status -eq "Stopped" -and $SEMACService.Status -eq "Stopped" -and $SERecovery.Status -eq "Stopped") {
+            break
         }
+    
+        Start-Sleep -Seconds 3
     }
 }
 #endregion StopSEServices
