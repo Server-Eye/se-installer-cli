@@ -248,6 +248,16 @@ else
 	$script:_LogFilePath = $LogFile
 }
 
+$fileWatcher = New-Object System.IO.FileSystemWatcher
+$fileWatcher.Path = $progdir+"\Server-Eye\config"
+$fileWatcher.IncludeSubdirectories = $true
+$fileWatcher.Filter = "*.conf"  
+
+$onCreated = Register-ObjectEvent -InputObject $fileWatcher -EventName Created -Action {
+    Write-Host "Datei erstellt: $($Event.SourceEventArgs.FullPath)"
+}
+
+
 #endregion Preconfigure some static settings
 
 #region Register Eventlog Source
@@ -552,12 +562,21 @@ function Start-ServerEyeInstallation
 	if ($Install)
 	{
 		Write-Log "Starting Installation Routine" -EventID 12
+		$fileWatcher = Start-FileWatcher -PathToWatch  $confDir -Action {
+			$finished = $true
+		}
 		Install-SEConnector -Path $Path
-		Write-Log "Installation Routine finished" -EventID 13
+		
+		while(!$finished){
+			Start-Sleep -Seconds 1
+			}
+
+	 	Write-Log "Installation Routine finished" -EventID 13
 	}
 	
 	if ($Deploy -eq "All")
 	{
+
 		Write-Log "Starting OCC Connector Configuration" -EventID 16
 		$HubConfig.ParentGuid = New-SEOccConnectorConfig -OCCConfig $OCCConfig
 		Write-Log "OCC Connector Configuration finished" -EventID 17
@@ -740,6 +759,42 @@ function Install-SEConnector
 	Start-Process -Wait -FilePath "$Path\ServerEyeSetup.exe" -ArgumentList "/install /passive /quiet /l C:\kits\se\log.txt"
 	Write-Host "done" -ForegroundColor Green
 }
+
+function Start-FileWatcher {
+    param (
+        [string]$PathToWatch,
+        [scriptblock]$Action
+    )
+
+    # Create a new FileSystemWatcher object
+    $fileWatcher = New-Object System.IO.FileSystemWatcher
+
+    # Set the properties
+    $fileWatcher.Path = $PathToWatch
+    $fileWatcher.Filter = '*.*'  # Watch all files in the directory
+    $fileWatcher.NotifyFilter = [System.IO.NotifyFilters]'FileName, LastWrite'
+
+    # Define the action to take when a change occurs
+    $changeAction = {
+        param ($source, $eventArgs)
+        Write-Host "File changed: $($eventArgs.FullPath)"
+        & $Action
+    }
+
+    # Register event handlers
+    Register-ObjectEvent $fileWatcher 'Changed' -Action $changeAction
+    Register-ObjectEvent $fileWatcher 'Created' -Action $changeAction
+    Register-ObjectEvent $fileWatcher 'Deleted' -Action $changeAction
+    Register-ObjectEvent $fileWatcher 'Renamed' -Action $changeAction
+
+    # Start watching
+    $fileWatcher.EnableRaisingEvents = $true
+
+    # Return the FileSystemWatcher object
+    return $fileWatcher
+}
+
+
 
 function New-SEOccConnectorConfig
 {
