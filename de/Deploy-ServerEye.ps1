@@ -248,16 +248,6 @@ else
 	$script:_LogFilePath = $LogFile
 }
 
-$fileWatcher = New-Object System.IO.FileSystemWatcher
-$fileWatcher.Path = $progdir+"\Server-Eye\config"
-$fileWatcher.IncludeSubdirectories = $true
-$fileWatcher.Filter = "*.conf"  
-
-$onCreated = Register-ObjectEvent -InputObject $fileWatcher -EventName Created -Action {
-    Write-Host "Datei erstellt: $($Event.SourceEventArgs.FullPath)"
-}
-
-
 #endregion Preconfigure some static settings
 
 #region Register Eventlog Source
@@ -562,36 +552,26 @@ function Start-ServerEyeInstallation
 	if ($Install)
 	{
 		Write-Log "Starting Installation Routine" -EventID 12
-		$fileWatcher = Start-FileWatcher -PathToWatch  $confDir -Action {
-			$finished = $true
+		
+		$finalPath = $progdir		
+
+		Start-FileWatcher -PathToWatch $finalPath  $OCCConfig -Action {
+            Start-Deploy $OCCConfig
 		}
+
 		Install-SEConnector -Path $Path
 		
-		while(!$finished){
-			Start-Sleep -Seconds 1
-			}
-
+		
+		
 	 	Write-Log "Installation Routine finished" -EventID 13
-	}
-	
-	if ($Deploy -eq "All")
-	{
+	}else{
 
-		Write-Log "Starting OCC Connector Configuration" -EventID 16
-		$HubConfig.ParentGuid = New-SEOccConnectorConfig -OCCConfig $OCCConfig
-		Write-Log "OCC Connector Configuration finished" -EventID 17
-		Start-Sleep 5
-		Write-Log "Starting Server-Eye Sensorhub Configuration" -EventID 14
-		New-SESensorHubConfig -HubConfig $HubConfig
-		Write-Log "Server-Eye Sensorhub Configuration finished" -EventID 15
+		Start-Deploy $OCCConfig
+
 	}
 	
-	if ($Deploy -eq "SensorhubOnly")
-	{
-		Write-Log "Starting Server-Eye Sensorhub Configuration" -EventID 14
-		New-SESensorHubConfig -HubConfig $HubConfig
-		Write-Log "Server-Eye Sensorhub Configuration finished" -EventID 15
-	}
+	Unregister-Event -SourceIdentifier DirectoryCreated -ErrorAction SilentlyContinue
+    Unregister-Event -SourceIdentifier TimerElapsed -ErrorAction SilentlyContinue
 	
 	if ($TemplateConfig.ApplyTemplate -and $TemplateConfig.TemplateId -ne $NULL)
 	{
@@ -760,10 +740,47 @@ function Install-SEConnector
 	Write-Host "done" -ForegroundColor Green
 }
 
+function Start-Deploy{
+
+ param (
+        $OCCConfig
+    )
+
+
+if ($Deploy -eq "All")
+	{
+
+   Write-Log "Starting OCC Connector Configuration" -EventID 16
+	    $progdir = Get-ProgramFilesDirectory
+	    $confDir = "$progdir\Server-Eye\config"
+	    $confFileMAC = "$confDir\se3_mac.conf"
+	    $OCCConfig.ConfFileMAC = $confFileMAC
+	    $confFileCC = "$confDir\se3_cc.conf"
+	    $HubConfig.ConfFileCC = $confFileCC
+	    $seDataDir = "$env:ProgramData\ServerEye3"
+		
+		$HubConfig.ParentGuid = New-SEOccConnectorConfig -OCCConfig $OCCConfig
+		Write-Log "OCC Connector Configuration finished" -EventID 17
+		Start-Sleep 5
+		Write-Log "Starting Server-Eye Sensorhub Configuration" -EventID 14
+		New-SESensorHubConfig -HubConfig $HubConfig
+		Write-Log "Server-Eye Sensorhub Configuration finished" -EventID 15
+	}
+	
+	if ($Deploy -eq "SensorhubOnly")
+	{
+		Write-Log "Starting Server-Eye Sensorhub Configuration" -EventID 14
+		New-SESensorHubConfig -HubConfig $HubConfig
+		Write-Log "Server-Eye Sensorhub Configuration finished" -EventID 15
+	}
+
+}
+
+
 function Start-FileWatcher {
     param (
         [string]$PathToWatch,
-        [scriptblock]$Action
+        $OCCConfig
     )
 
     # Create a new FileSystemWatcher object
@@ -771,30 +788,49 @@ function Start-FileWatcher {
 
     # Set the properties
     $fileWatcher.Path = $PathToWatch
-    $fileWatcher.Filter = '*.*'  # Watch all files in the directory
-    $fileWatcher.NotifyFilter = [System.IO.NotifyFilters]'FileName, LastWrite'
+    $fileWatcher.Filter = '*.*'  
+    $fileWatcher.IncludeSubdirectories = $true
+    $fileWatcher.EnableRaisingEvents = $true
+    $fileWatcher.NotifyFilter = [System.IO.NotifyFilters]::DirectoryName
 
-    # Define the action to take when a change occurs
-    $changeAction = {
-        param ($source, $eventArgs)
-        Write-Host "File changed: $($eventArgs.FullPath)"
-        & $Action
+    $finalPath=$PathToWatch + "\Server-Eye\config"
+     
+    $onCreated = Register-ObjectEvent $fileWatcher Created -SourceIdentifier DirectoryCreated -Action {
+            $path = $Event.SourceEventArgs.FullPath
+            $name = $Event.SourceEventArgs.Name
+           if(! $path.Contains("service")){
+           $contConfig = $path.Contains("config")
+           
+            if($contConfig){
+            Start-Sleep 5
+             #Write-Host "File created: $name at $PathToWatch with path $path"
+            Start-Deploy $OCCConfig
+            Stop-Watcher
+            }
+            }
+}
+
+    $timer = New-Object System.Timers.Timer
+    $timer.Interval = 600000 # 600000 milliseconds = 10 minutes
+    $timer.AutoReset = $false # Ensure the timer runs only once
+
+    $onTimerElapsed = Register-ObjectEvent -InputObject $timer -EventName Elapsed -SourceIdentifier TimerElapsed -Action {
+        Write-Host "No event was raised within 10 minutes. Stopping FileSystemWatcher."
+        Stop-Watcher
     }
 
-    # Register event handlers
-    Register-ObjectEvent $fileWatcher 'Changed' -Action $changeAction
-    Register-ObjectEvent $fileWatcher 'Created' -Action $changeAction
-    Register-ObjectEvent $fileWatcher 'Deleted' -Action $changeAction
-    Register-ObjectEvent $fileWatcher 'Renamed' -Action $changeAction
+    $timer.Start()
 
-    # Start watching
-    $fileWatcher.EnableRaisingEvents = $true
-
-    # Return the FileSystemWatcher object
-    return $fileWatcher
 }
 
 
+function Stop-Watcher {
+    Unregister-Event -SourceIdentifier DirectoryCreated -ErrorAction SilentlyContinue
+    Unregister-Event -SourceIdentifier TimerElapsed -ErrorAction SilentlyContinue
+    $fileWatcher.Dispose()
+    $timer.Dispose()
+    Write-Host "FileSystemWatcher stopped."
+}
 
 function New-SEOccConnectorConfig
 {
@@ -909,6 +945,7 @@ port=$($HubConfig.HubPort)
 		Stop-Execution
 	}
 }
+
 
 function Download-SEFile
 {
