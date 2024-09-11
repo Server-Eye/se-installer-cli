@@ -90,7 +90,7 @@
 		The parameters Customer and Secret are required for this.
 	
 	.EXAMPLE
-		PS C:\> .\Deploy-ServerEye.ps1 -Download -Install -Deploy SenorhubOnly -Customer XXXXXX -Secret YYYYYY -ParentGuid ZZZZZZ
+		PS C:\> .\Deploy-ServerEye.ps1 -Download -Install -Deploy SensorhubOnly -Customer XXXXXX -Secret YYYYYY -ParentGuid ZZZZZZ
 		
 		This will download the current version of ServerEye and install it on this computer.
 		This will also set up a Sensorhub on this computer for the given customer.
@@ -157,10 +157,10 @@ param(
 	$DeployPath,
 	
 	[switch]
-    $SkipInstalledCheck,
+    	$SkipInstalledCheck,
     
-    [switch]
-    $SkipLogInstalledCheck,
+    	[switch]
+    	$SkipLogInstalledCheck,
 	
 	[string]
 	$LogFile,
