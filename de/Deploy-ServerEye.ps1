@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 <#
 	.SYNOPSIS
     This is the silent servereye installer.
@@ -109,59 +109,77 @@
 
 [CmdletBinding(DefaultParameterSetName ='None')]
 param(
+	[Parameter(Mandatory=$true)]
 	[ValidateSet("OCC-Connector", "Sensorhub")]
 	[string]
 	$Deploy,
 	
+	[Parameter(Mandatory=$true)]
 	[string]
 	$Customer,
 	
+	[Parameter(Mandatory=$false)]
 	[string]
 	$ParentGuid,
 	
+	[Parameter(Mandatory=$false)]
 	[string]
 	$ConnectorPort = "11002",
 	
+	[Parameter(Mandatory=$false)]
 	[string]
 	$TemplateId,
 	
+	[Parameter(Mandatory=$true)]
 	[string]
 	$ApiKey,
 
+	[Parameter(Mandatory=$false)]
 	[switch]
 	$Cleanup,
 
+	[Parameter(Mandatory=$false)]
 	[string]
 	$proxyUrl,
 
+	[Parameter(Mandatory=$false)]
 	[string]
 	$proxyPort,
 
+	[Parameter(Mandatory=$false)]
 	[string]
 	$proxyDomain,
 
+	[Parameter(Mandatory=$false)]
 	[string]
 	$proxyUser,
 
+	[Parameter(Mandatory=$false)]
 	[string]
 	$proxyPassword,
 	
+	[Parameter(Mandatory=$false)]
 	[switch]
 	$Silent,
 	
 	# TODO: Do we really need this parameter?
+	[Parameter(Mandatory=$false)]
 	[switch]
 	$SilentOCCConfirmed,
 	
+	[Parameter(Mandatory=$false)]
 	[string]
 	$DeployPath,
 	
+	[Parameter(Mandatory=$false)]
 	[switch]
     $SkipInstalledCheck,
 	
+	[Parameter(Mandatory=$false)]
 	[string]
 	$LogFile,
 	
+	[Parameter(Mandatory=$false)]
 	[switch]
 	$NoExit
 )
@@ -419,15 +437,20 @@ function Stop-Execution {
 
 #region Main functions
 function Check-SEInvalidParameterization {
-	if ((-not $Install) -and (-not $Download) -and (-not $TemplateId) -and (-not $PSBoundParameters.ContainsKey('Deploy'))) {
+	if ($Deploy -eq "Sensorhub" -and (-not $ParentGuid)) {
 		# Give guidance
 		if (-not $_SilentOverride) { Write-SEDeployHelp }
-		Write-Log -Message "Invalid Parameter combination: Must specify at least one of the following parameters: '-Download', '-Install' or '-Deploy'." -EventID 666 -EntryType Error
+		Write-Log -Message "Invalid Parameter combination: Please provide the ParentGuid of an OCC-Connector when installing a Sensorhub via '-ParentGuid'" -EventID 666 -EntryType Error
 		Stop-Execution
 	}
 	
 	if (($Silent) -and (-not $SilentOCCConfirmed) -and ($Deploy -eq "OCC-Connector")) {
 		Write-Log -Message "Invalid Parameters: Cannot silently install OCC Connector without confirming this with the Parameter '-SilentOCCConfirmed'" -EventID 666 -EntryType Error
+		Stop-Execution
+	}
+
+	if ($proxyUrl -and (-not $proxyPort)) {
+		Write-Log -Message "Invalid Parameters: Proxy URL is set but no port is provided. Please provide a port via '-proxyPort'." -EventID 666 -EntryType Error
 		Stop-Execution
 	}
 }
@@ -458,9 +481,7 @@ function Check-PreExistingInstallation {
 	$progdir = Get-ProgramFilesDirectory
 	$confDir = "$progdir\Server-Eye\config"
 	$confFileMAC = "$confDir\se3_mac.conf"
-	$OCCConfig.ConfFileMAC = $confFileMAC
 	$confFileCC = "$confDir\se3_cc.conf"
-	$HubConfig.ConfFileCC = $confFileCC
 	$seDataDir = "$env:ProgramData\ServerEye3"
 	
 	
@@ -525,10 +546,10 @@ function Download-SEInstallationFiles {
 		$proxy
 	)
 	
-	Write-Log "  Getting current servereye version... " -NoNewLine
-	Write-Log "  Current servereye version is: $SE_version" -NoNewLine
+	Write-Log "Getting current servereye version... "
+	Write-Log "Current servereye version is: $SE_version"
 
-	Write-Log "  Downloading ServerEye.Setup... " -NoNewline
+	Write-Log "Downloading ServerEye.Setup... "
 	Download-SEFile "$BaseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" "$Path\ServerEyeSetup.exe" -proxy $proxy
 }
 
@@ -544,7 +565,7 @@ function Start-ServerEyeInstallation {
 		$message = "Are you sure you want to install an OCC-Connector? In most cases, only one is needed per network/subnet."
 		$result = $Host.UI.PromptForChoice($caption, $message, $choices, 1)
 		
-		if ($result -eq 1) {
+		if ($result -eq 0) {
 			Write-Host "Great, let's continue."
 			Write-Log "User-Choice: Is sure. Continuing OCC-Connector installation" -Silent $true
 		} else {
@@ -556,46 +577,48 @@ function Start-ServerEyeInstallation {
 
 	Write-Log "Starting installation process..."
 
-	Write-Log "Starting Download Routine" -EventID 10
-	Download-SEInstallationFiles -BaseDownloadUrl $BaseDownloadUrl -Path $Path -Version $Version -proxy $WebProxy
-	Write-Log "Download Routine finished" -EventID 11
+	Write-Log "Starting download routine..." -EventID 10
+	Download-SEInstallationFiles -BaseDownloadUrl $BaseDownloadUrl -Path $Path -proxy $WebProxy
+	Write-Log "Download routine finished" -EventID 11
 
 	# Build the parameter string for ServerEyeSetup.exe
 	$parameterString = ""
 
+	# These are specific to the installation type
 	if ($Deploy -eq "OCC-Connector") {
 		Write-Log "Starting servereye OCC-Connector installation" -EventID 16
 		$parameterString += "newConnector"
 	} elseif ($Deploy -eq "Sensorhub") {
 		Write-Log "Starting servereye Sensorhub configuration" -EventID 14
 		$parameterString += "install"
-		$parameterString += " --cID='$ParentGuid'"
+		$parameterString += " --cID=$ParentGuid"
 	}
 
+	# These are common to all installations
 	switch ($true) {
-		{ $ApiKey } { $parameterString += " --apiKey='$ApiKey'" }
-		{ $Customer } { $parameterString += " --customerID='$Customer'" }
-		{ $TemplateId } { $parameterString += " --templateID='$TemplateId'" }
-		{ $ConnectorPort } { $parameterString += " --port='$ConnectorPort'" }
-		{ $proxyUrl } { $parameterString += " --proxyUrl='$proxyUrl'" }
-		{ $proxyPort } { $parameterString += " --proxyPort='$proxyPort'" }
-		{ $proxyDomain } { $parameterString += " --proxyDomain='$proxyDomain'" }
-		{ $proxyUser } { $parameterString += " --proxyUser='$proxyUser'" }
-		{ $proxyPassword } { $parameterString += " --proxyPassword='$proxyPassword'" }
-		{ $Cleanup } { $parameterString += " --cleanup=true" }
+		$ApiKey { $parameterString += " --apiKey=$ApiKey" }
+		$Customer { $parameterString += " --customerID=$Customer" }
+		$TemplateId { $parameterString += " --templateID=$TemplateId" }
+		$ConnectorPort { $parameterString += " --port=$ConnectorPort" }
+		$proxyUrl { $parameterString += " --proxyUrl=$proxyUrl" }
+		$proxyPort { $parameterString += " --proxyPort=$proxyPort" }
+		$proxyDomain { $parameterString += " --proxyDomain=$proxyDomain" }
+		$proxyUser { $parameterString += " --proxyUser=$proxyUser" }
+		$Cleanup { $parameterString += " --cleanup=true" }
 	}
 
-	$parameterString += " silent=true"
-
+	# This always needs to be set
+	$parameterString += " --silent=true"
+	
 	# Execute ServerEyeSetup.exe with the constructed parameter string
 	$setupPath = Join-Path -Path $DeployPath -ChildPath "ServerEyeSetup.exe"
-	Start-Process -FilePath $setupPath -ArgumentList $parameterString -Wait -NoNewWindow
+	Start-Process -FilePath $setupPath -ArgumentList "ARGUMENTS=`"$parameterString`" /quiet" -Wait -NoNewWindow
 	
 	# TODO: Check if the installation was successful via msiexec exitcode or other means. The more detailed the better.
 
 	Write-Host "Finished!" -ForegroundColor Green
 	
-	Write-Host "`nPlease visit https://$OCCServer to add Sensors.`nHave fun!"
+	Write-Host "`nPlease visit https://occ.server-eye.de to add Sensors.`nHave fun!"
 	Write-Log "Installation successfully finished!" -EventID 1 -Silent $true
 	Stop-Execution -Number 0
 }
