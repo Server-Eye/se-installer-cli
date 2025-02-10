@@ -1,5 +1,7 @@
 ﻿#Requires -RunAsAdministrator
 <#
+	TODO: Change the argument descriptions to match the new parameters
+
 	.SYNOPSIS
     This is the silent servereye installer.
 	
@@ -315,29 +317,6 @@ function Get-SELatestVersion {
     return $wc.DownloadString("https://occ.server-eye.de/download/se/currentVersion")
 }
 
-function Write-SEDeployHelp {	
-	# Suppress all text-output in silent mode
-	if ($script:_SilentOverride) { return }
-	
-	$me = ".\Deploy-ServerEye.ps1"
-	Write-Header
-	
-	Write-host "This script needs at least one of the following parameters.`n" -ForegroundColor red
-	
-	Write-Host "$me -Download"
-	Write-Host "Downloads the current version of servereye.`n"
-	
-	Write-Host "$me -Install"
-	Write-Host "Installs servereye on this computer using the Setup .exe in this folder.`n"
-	
-	Write-Host "$me -Deploy [All|SensorHubOnly] -Customer XXXX -Secret YYYY"
-	Write-Host "Sets up servereye on this computer using the given customer and secret key.`n"
-	
-	Write-Host "$me -Download -Install -Deploy [All|SensorHubOnly] -Customer XXXX -Secret YYYY"
-	Write-Host "Does all of the above.`n"
-	
-}
-
 function Download-SEFile {
 	[CmdletBinding()]
 	Param (
@@ -347,7 +326,7 @@ function Download-SEFile {
 		[string]
 		$TargetFile,
 
-		$proxy
+		$Proxy
 	)
 
 	if ([System.IO.File]::Exists($TargetFile)) {
@@ -438,19 +417,27 @@ function Stop-Execution {
 #region Main functions
 function Check-SEInvalidParameterization {
 	if ($Deploy -eq "Sensorhub" -and (-not $ParentGuid)) {
-		# Give guidance
-		if (-not $_SilentOverride) { Write-SEDeployHelp }
 		Write-Log -Message "Invalid Parameter combination: Please provide the ParentGuid of an OCC-Connector when installing a Sensorhub via '-ParentGuid'" -EventID 666 -EntryType Error
-		Stop-Execution
+		$StopExecution = $true
 	}
 	
 	if (($Silent) -and (-not $SilentOCCConfirmed) -and ($Deploy -eq "OCC-Connector")) {
 		Write-Log -Message "Invalid Parameters: Cannot silently install OCC Connector without confirming this with the Parameter '-SilentOCCConfirmed'" -EventID 666 -EntryType Error
-		Stop-Execution
+		$StopExecution = $true
 	}
 
 	if ($proxyUrl -and (-not $proxyPort)) {
 		Write-Log -Message "Invalid Parameters: Proxy URL is set but no port is provided. Please provide a port via '-proxyPort'." -EventID 666 -EntryType Error
+		$StopExecution = $true
+	}
+
+	if ($Deploy -eq "Sensorhub" -and ($ConnectorPort)) {
+		Write-Log -Message "Invalid Parameters: A ConnectorPort can only be specified when installing an OCC-Connector. Don't use -ConnectorPort when installing a Sensorhub." -EventID 666 -EntryType Error
+		$StopExecution = $true
+	}
+
+	if ($StopExecution) {
+		Write-Log -Message "Exiting script due to invalid parameters!" -EventID 666 -EntryType Error -ForegroundColor Red
 		Stop-Execution
 	}
 }
@@ -499,7 +486,7 @@ function Check-SEScriptVersion {
 			Write-Log -Message @"
 This version of the servereye deployment script is no longer supported.
 Please update to the newest version with this command:
-Invoke-WebRequest "$($SE_baseDownloadUrl)/$($SE_cloudIdentifier)/Deploy-ServerEye-New.ps1" -OutFile Deploy-ServerEye.ps1
+Invoke-WebRequest "$($SE_baseDownloadUrl)/$($SE_cloudIdentifier)/Deploy-ServerEye.ps1" -OutFile Deploy-ServerEye.ps1
 "@ -EventID 666 -EntryType Error
 			Stop-Execution
 		}
@@ -534,23 +521,11 @@ function Check-SEDeployPath {
 	}
 }
 
-function Download-SEInstallationFiles {
-	[CmdletBinding()]
-	Param (
-		[string]
-		$BaseDownloadUrl,
-		
-		[string]
-		$Path,
-
-		$proxy
-	)
-	
+function Download-SEInstallationFiles {	
 	Write-Log "Getting current servereye version... "
 	Write-Log "Current servereye version is: $SE_version"
-
 	Write-Log "Downloading ServerEye.Setup... "
-	Download-SEFile "$BaseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" "$Path\ServerEyeSetup.exe" -proxy $proxy
+	Download-SEFile -Url "$SE_baseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" -TargetFile "$DeployPath\ServerEyeSetup.exe" -Proxy $Proxy
 }
 
 function Start-ServerEyeInstallation {
@@ -595,17 +570,15 @@ function Start-ServerEyeInstallation {
 	}
 
 	# These are common to all installations
-	switch ($true) {
-		$ApiKey { $parameterString += " --apiKey=$ApiKey" }
-		$Customer { $parameterString += " --customerID=$Customer" }
-		$TemplateId { $parameterString += " --templateID=$TemplateId" }
-		$ConnectorPort { $parameterString += " --port=$ConnectorPort" }
-		$proxyUrl { $parameterString += " --proxyUrl=$proxyUrl" }
-		$proxyPort { $parameterString += " --proxyPort=$proxyPort" }
-		$proxyDomain { $parameterString += " --proxyDomain=$proxyDomain" }
-		$proxyUser { $parameterString += " --proxyUser=$proxyUser" }
-		$Cleanup { $parameterString += " --cleanup=true" }
-	}
+	if ($ApiKey) { $parameterString += " --apiKey=$ApiKey" }
+	if ($Customer) { $parameterString += " --customerID=$Customer" }
+	if ($TemplateId) { $parameterString += " --templateID=$TemplateId" }
+	if ($ConnectorPort) { $parameterString += " --port=$ConnectorPort" }
+	if ($proxyUrl) { $parameterString += " --proxyUrl=$proxyUrl" }
+	if ($proxyPort) { $parameterString += " --proxyPort=$proxyPort" }
+	if ($proxyDomain) { $parameterString += " --proxyDomain=$proxyDomain" }
+	if ($proxyUser) { $parameterString += " --proxyUser=$proxyUser" }
+	if ($Cleanup) { $parameterString += " --cleanup=true" }
 
 	# This always needs to be set
 	$parameterString += " --silent=true"
@@ -656,7 +629,7 @@ if ($LogFile -eq "") {
 #endregion
 
 #region Main execution
-Check-SEScriptVersion
+# Check-SEScriptVersion
 Check-SEInvalidParameterization
 Check-SESupportedOSVersion
 Check-PreExistingInstallation
