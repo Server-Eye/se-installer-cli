@@ -27,7 +27,7 @@
 	.PARAMETER Deploy
     Assigns the connector to a specific customer.
 	
-	.PARAMETER Customer
+	.PARAMETER CustomerID
     The customer ID to which the computer is added.
 	
 	.PARAMETER Secret
@@ -118,7 +118,7 @@ param(
 	
 	[Parameter(Mandatory=$true)]
 	[string]
-	$Customer,
+	$CustomerID,
 	
 	[Parameter(Mandatory=$false)]
 	[string]
@@ -126,7 +126,7 @@ param(
 	
 	[Parameter(Mandatory=$false)]
 	[string]
-	$ConnectorPort = "11002",
+	$ConnectorPort,
 	
 	[Parameter(Mandatory=$false)]
 	[string]
@@ -163,11 +163,6 @@ param(
 	[Parameter(Mandatory=$false)]
 	[switch]
 	$Silent,
-	
-	# TODO: Do we really need this parameter?
-	[Parameter(Mandatory=$false)]
-	[switch]
-	$SilentOCCConfirmed,
 	
 	[Parameter(Mandatory=$false)]
 	[string]
@@ -412,27 +407,115 @@ function Stop-Execution {
 	if ($script:_NoExit) { break main }
 	else { exit $Number }
 }
+
+function Check-ForSuccessfulInstallation {
+
+	switch ($x) {
+		condition {  }
+		Default {}
+	}
+	
+}
 #endregion
 
 #region Main functions
 function Check-SEInvalidParameterization {
-	if ($Deploy -eq "Sensorhub" -and (-not $ParentGuid)) {
-		Write-Log -Message "Invalid Parameter combination: Please provide the ParentGuid of an OCC-Connector when installing a Sensorhub via '-ParentGuid'" -EventID 666 -EntryType Error
-		$StopExecution = $true
+
+	$Error500Msg = "Server Error: An internal server error occurred. Please check status.server-eye.de for a potential outage.`n If theres no current outage, please contact the servereye Helpdesk."
+	$UnexpectedErrorMsg = "Unexpected Error: An unexpected error occurred with status code $StatusCode. Please report this to the servereye Helpdesk."
+
+	try {
+		Invoke-WebRequest -Method Post -Uri "https://api.server-eye.de/3/auth/login" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop | Out-Null
+	} catch {
+		$StatusCode = $_.Exception.Response.StatusCode.value__
+		switch ($StatusCode) {
+			401 {
+				Write-Log "Invalid Parameters: The provided API-Key is invalid. Please provide a valid API-Key via '-ApiKey'." -EventID 666 -EntryType Error -ForegroundColor Red
+				Stop-Execution
+			}
+			500 {
+				Write-Log $Error500Msg -EventID 666 -EntryType Error -ForegroundColor Red
+				Stop-Execution
+			}
+			default {
+				Write-Log $UnexpectedErrorMsg -EventID 666 -EntryType Error -ForegroundColor Red
+				Stop-Execution
+			}
+		}
 	}
-	
-	if (($Silent) -and (-not $SilentOCCConfirmed) -and ($Deploy -eq "OCC-Connector")) {
-		Write-Log -Message "Invalid Parameters: Cannot silently install OCC Connector without confirming this with the Parameter '-SilentOCCConfirmed'" -EventID 666 -EntryType Error
+
+	if ($Deploy -eq "Sensorhub" -and (-not $ParentGuid)) {
+		Write-Log -Message "Invalid Parameters: Please provide the ParentGuid of an OCC-Connector when installing a Sensorhub via '-ParentGuid'" -EventID 666 -EntryType Error
 		$StopExecution = $true
 	}
 
 	if ($proxyUrl -and (-not $proxyPort)) {
-		Write-Log -Message "Invalid Parameters: Proxy URL is set but no port is provided. Please provide a port via '-proxyPort'." -EventID 666 -EntryType Error
+		Write-Log -Message "Invalid Parameters: Proxy URL is set but no port is provided. Please provide a port via '-ProxyPort'." -EventID 666 -EntryType Error
 		$StopExecution = $true
 	}
 
 	if ($Deploy -eq "Sensorhub" -and ($ConnectorPort)) {
 		Write-Log -Message "Invalid Parameters: A ConnectorPort can only be specified when installing an OCC-Connector. Don't use -ConnectorPort when installing a Sensorhub." -EventID 666 -EntryType Error
+		$StopExecution = $true
+	}
+
+	try {
+		Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/customer/$CustomerID" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop | Out-Null
+	} catch {
+		$StatusCode = $_.Exception.Response.StatusCode.value__
+		switch ($StatusCode) {
+			403 {
+				Write-Log "Invalid Parameters: A customer with this ID doesn't exist or you don't have access to it. Please check if the provided CustomerID is correct." -EventID 666 -EntryType Error -ForegroundColor Red
+			}
+			500 {
+				Write-Log $Error500Msg -EventID 666 -EntryType Error -ForegroundColor Red
+				Stop-Execution
+			}
+			default {
+				Write-Log $UnexpectedErrorMsg -EventID 666 -EntryType Error -ForegroundColor Red
+				Stop-Execution
+			}
+		}
+		$StopExecution = $true
+	}
+
+	try {
+		Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/container/$ParentGuid" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop | Out-Null
+	} catch {
+		$StatusCode = $_.Exception.Response.StatusCode.value__
+		switch ($StatusCode) {
+			404 {
+				Write-Log "Invalid Parameters: An OCC-Connector with this ID doesn't exist or you don't have access to it. Please check if the provided ParentGuid is correct." -EventID 666 -EntryType Error -ForegroundColor Red
+			}
+			500 {
+				Write-Log $Error500Msg -EventID 666 -EntryType Error -ForegroundColor Red
+				Stop-Execution
+			}
+			default {
+				Write-Log $UnexpectedErrorMsg -EventID 666 -EntryType Error -ForegroundColor Red
+				Stop-Execution
+			}
+		}
+		$StopExecution = $true
+	}
+
+	try {
+		Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/customer/template/$TemplateId/agent" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop | Out-Null
+	} catch {
+		$StatusCode = $_.Exception.Response.StatusCode.value__
+		switch ($StatusCode) {
+			404 {
+				Write-Log "Invalid Parameters: A Template with this ID doesn't exist or you don't have access to it. Please check if the provided TemplateID is correct." -EventID 666 -EntryType Error -ForegroundColor Red
+			}
+			500 {
+				Write-Log $Error500Msg -EventID 666 -EntryType Error -ForegroundColor Red
+				Stop-Execution
+			}
+			default {
+				Write-Log $UnexpectedErrorMsg -EventID 666 -EntryType Error -ForegroundColor Red
+				Stop-Execution
+			}
+		}
 		$StopExecution = $true
 	}
 
@@ -471,28 +554,8 @@ function Check-PreExistingInstallation {
 	$confFileCC = "$confDir\se3_cc.conf"
 	$seDataDir = "$env:ProgramData\ServerEye3"
 	
-	
-	if ((-not $SkipInstalledCheck) -and (($Install -or $PSBoundParameters.ContainsKey('Deploy')) -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir)))) {		
+	if ((-not $SkipInstalledCheck) -and (($PSBoundParameters.ContainsKey('Deploy')) -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir)))) {		
 		Stop-Execution
-	}
-}
-
-# TODO: Should we really end the script if the version check fails and the newest version can't be downloaded?
-function Check-SEScriptVersion {
-	try {
-		Write-Log -Message "Checking for new script version"
-		$result = $wc.DownloadString("$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersionCli")
-		if ($SE_version -lt $result) {
-			Write-Log -Message @"
-This version of the servereye deployment script is no longer supported.
-Please update to the newest version with this command:
-Invoke-WebRequest "$($SE_baseDownloadUrl)/$($SE_cloudIdentifier)/Deploy-ServerEye.ps1" -OutFile Deploy-ServerEye.ps1
-"@ -EventID 666 -EntryType Error
-			Stop-Execution
-		}
-	} catch {
-		# Failing the update-check is not necessarily a game-over. Failure to download the actual packages will terminate the script.
-		Write-Log -Message "Failed to access version information: $($_.Exception.Message)" -EventID 404 -EntryType Warning
 	}
 }
 
@@ -571,7 +634,7 @@ function Start-ServerEyeInstallation {
 
 	# These are common to all installations
 	if ($ApiKey) { $parameterString += " --apiKey=$ApiKey" }
-	if ($Customer) { $parameterString += " --customerID=$Customer" }
+	if ($CustomerID) { $parameterString += " --customerID=$CustomerID" }
 	if ($TemplateId) { $parameterString += " --templateID=$TemplateId" }
 	if ($ConnectorPort) { $parameterString += " --port=$ConnectorPort" }
 	if ($proxyUrl) { $parameterString += " --proxyUrl=$proxyUrl" }
@@ -587,13 +650,23 @@ function Start-ServerEyeInstallation {
 	$setupPath = Join-Path -Path $DeployPath -ChildPath "ServerEyeSetup.exe"
 	Start-Process -FilePath $setupPath -ArgumentList "ARGUMENTS=`"$parameterString`" /quiet" -Wait -NoNewWindow
 	
-	# TODO: Check if the installation was successful via msiexec exitcode or other means. The more detailed the better.
-
-	Write-Host "Finished!" -ForegroundColor Green
-	
-	Write-Host "`nPlease visit https://occ.server-eye.de to add Sensors.`nHave fun!"
-	Write-Log "Installation successfully finished!" -EventID 1 -Silent $true
-	Stop-Execution -Number 0
+	# Read the content of the installer log file
+	$installerLogPath = "C:\ProgramData\ServerEye3\logs\installer.log"
+	if (Test-Path $installerLogPath) {
+		$installerLogContent = Get-Content -Path $installerLogPath -Raw
+		if ($installerLogContent -like "*Successfully installed*") {
+			Write-Log "Installation finished successfully!" -EventID 1 -Silent $true
+			Write-Host "Installation finished successfully!" -ForegroundColor Green
+			Write-Host "`nPlease visit https://occ.server-eye.de to add Sensors.`nHave fun!"
+			Stop-Execution -Number 0
+		} else {
+			Write-Log -Message "Installation failed!" -EventID 666 -EntryType Error -Silent $true
+			Write-Host "The installation failed. Please report this to the servereye Helpdesk and include the following file in your Ticket:`n$installerLogPath" -ForegroundColor Red
+		}
+	} else {
+		Write-Log -Message "Installer log file not found at $installerLogPath" -EventID 666 -EntryType Error
+		Write-Host "The installation was probably successfull, but the ínstaller.log file could not be found at $installerLogPath.`nPlease report this to the servereye Helpdesk." -ForegroundColor Yellow
+	}
 }
 #endregion
 
@@ -622,14 +695,13 @@ if ($proxyUrl -and $proxyPort) {
 if ($DeployPath -eq "") { $DeployPath = (Resolve-Path .\).Path }
 
 if ($LogFile -eq "") {
-	$script:_LogFilePath = $env:TEMP + "\ServerEyeInstall.log"
+	$script:_LogFilePath = "$env:ProgramData\ServerEye3\logs\Deploy-ServerEye.log"
 } else {
 	$script:_LogFilePath = $LogFile
 }
 #endregion
 
 #region Main execution
-# Check-SEScriptVersion
 Check-SEInvalidParameterization
 Check-SESupportedOSVersion
 Check-PreExistingInstallation
