@@ -370,7 +370,7 @@ function Check-SEDeployPath {
 	}
 }
 
-function Download-SEInstallationFiles {	
+function Download-SEInstallationFiles {
 	Log "Current servereye version is: $SE_version"
 	Log "Starting download of ServerEyeSetup.exe... "
 	try {
