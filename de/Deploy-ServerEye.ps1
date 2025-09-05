@@ -167,11 +167,11 @@ function Log {
 
 		[Parameter(Mandatory=$false)]
 		[switch]
-		$ToScreen = $true,
+		$ToScreen = $false,
 
 		[Parameter(Mandatory=$false)]
 		[switch]
-		$ToFile = $true,
+		$ToFile = $false,
 
 		[Parameter(Mandatory=$false)]
 		[string]
@@ -179,7 +179,7 @@ function Log {
 
 		[Parameter(Mandatory=$false)]
 		[string]
-		$BackgroundColor = "Black",
+		$BackgroundColor = "Black"
 	)
 
     $Stamp = (Get-Date).toString("dd/MM/yyyy HH:mm:ss")
@@ -227,27 +227,27 @@ function Check-SEInvalidParameterization {
 		$StatusCode = $_.Exception.Response.StatusCode.value__
 		switch ($StatusCode) {
 			401 {
-				Log "Invalid Parameters: The provided API-Key is invalid. Please provide a valid API-Key via '-ApiKey'."
+				Log "Invalid Parameters: The provided API-Key is invalid. Please provide a valid API-Key via '-ApiKey'." -ToScreen -ToFile
 				exit
 			}
 			500 {
-				Log $Error500Msg -ForegroundColor Red
+				Log $Error500Msg -ForegroundColor Red -ToScreen -ToFile
 				exit
 			}
 			default {
-				Log $UnexpectedErrorMsg -ForegroundColor Red
+				Log $UnexpectedErrorMsg -ForegroundColor Red -ToScreen -ToFile
 				exit
 			}
 		}
 	}
 
 	if ($Deploy -eq "Sensorhub" -and (-not $ParentGuid)) {
-		Log "Invalid Parameters: Please provide the ParentGuid of an OCC-Connector when installing a Sensorhub via '-ParentGuid'"
+		Log "Invalid Parameters: Please provide the ParentGuid of an OCC-Connector when installing a Sensorhub via '-ParentGuid'" -ToScreen -ToFile
 		$StopExecution = $true
 	}
 
 	if ($Deploy -eq "Sensorhub" -and ($ConnectorPort)) {
-		Log "Invalid Parameters: A ConnectorPort can only be specified when installing an OCC-Connector. Don't use -ConnectorPort when installing a Sensorhub."
+		Log "Invalid Parameters: A ConnectorPort can only be specified when installing an OCC-Connector. Don't use -ConnectorPort when installing a Sensorhub." -ToScreen -ToFile
 		$StopExecution = $true
 	}
 
@@ -257,14 +257,14 @@ function Check-SEInvalidParameterization {
 		$StatusCode = $_.Exception.Response.StatusCode.value__
 		switch ($StatusCode) {
 			403 {
-				Log "Invalid Parameters: A customer with this ID doesn't exist or you don't have access to it. Please check if the provided CustomerID is correct."
+				Log "Invalid Parameters: A customer with this ID doesn't exist or you don't have access to it. Please check if the provided CustomerID is correct." -ToScreen -ToFile
 			}
 			500 {
-				Log $Error500Msg -ForegroundColor Red
+				Log $Error500Msg -ForegroundColor Red -ToScreen -ToFile
 				exit
 			}
 			default {
-				Log $UnexpectedErrorMsg -ForegroundColor Red
+				Log $UnexpectedErrorMsg -ForegroundColor Red -ToScreen -ToFile
 				exit
 			}
 		}
@@ -277,14 +277,14 @@ function Check-SEInvalidParameterization {
 		$StatusCode = $_.Exception.Response.StatusCode.value__
 		switch ($StatusCode) {
 			404 {
-				Log "Invalid Parameters: An OCC-Connector with this ID doesn't exist or you don't have access to it. Please check if the provided ParentGuid is correct."
+				Log "Invalid Parameters: An OCC-Connector with this ID doesn't exist or you don't have access to it. Please check if the provided ParentGuid is correct." -ToScreen -ToFile
 			}
 			500 {
-				Log $Error500Msg -ForegroundColor Red
+				Log $Error500Msg -ForegroundColor Red -ToScreen -ToFile
 				exit
 			}
 			default {
-				Log $UnexpectedErrorMsg -ForegroundColor Red
+				Log $UnexpectedErrorMsg -ForegroundColor Red -ToScreen -ToFile
 				exit
 			}
 		}
@@ -297,14 +297,14 @@ function Check-SEInvalidParameterization {
 		$StatusCode = $_.Exception.Response.StatusCode.value__
 		switch ($StatusCode) {
 			404 {
-				Log "Invalid Parameters: A Template with this ID doesn't exist or you don't have access to it. Please check if the provided TemplateID is correct."
+				Log "Invalid Parameters: A Template with this ID doesn't exist or you don't have access to it. Please check if the provided TemplateID is correct." -ToScreen -ToFile
 			}
 			500 {
-				Log $Error500Msg
+				Log $Error500Msg -ToScreen -ToFile
 				exit
 			}
 			default {
-				Log $UnexpectedErrorMsg
+				Log $UnexpectedErrorMsg -ToScreen -ToFile
 				exit
 			}
 		}
@@ -312,7 +312,7 @@ function Check-SEInvalidParameterization {
 	}
 
 	if ($StopExecution) {
-		Log "Exiting script due to invalid parameters!"
+		Log "Exiting script due to invalid parameters!" -ToScreen -ToFile
 		exit
 	}
 }
@@ -320,7 +320,7 @@ function Check-SEInvalidParameterization {
 function Check-SESupportedOSVersion {
 	if ([environment]::OSVersion.Version.Major -lt 6) {
 		if (-not $script:_SilentOverride) {
-			Log "Your operating system is not officially supported.`nThe install will most likely work but we can no longer provide support for servereye on this system."
+			Log "Your operating system is not officially supported.`nThe install will most likely work but we can no longer provide support for servereye on this system." -ToScreen -ToFile
 			
 			$yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes, continue without support", "The install will continue, but we cannot help you if something doesn't work."
 			$no = New-Object System.Management.Automation.Host.ChoiceDescription "&No, cancel the install", "End the install now."
@@ -329,11 +329,11 @@ function Check-SESupportedOSVersion {
 			$message = "Do you still want to install servereye on this computer?"
 			$result = $Host.UI.PromptForChoice($caption, $message, $choices, 1)
 			if ($result -eq 1) {
-				Log "Execution interrupted by user"
+				Log "Execution interrupted by user" -ToScreen -ToFile
 				exit
-			   } else { Log "Execution continued by user" }
+			   } else { Log "Execution continued by user" -ToScreen -ToFile }
 		} else {
-			Log "Non-Supported OS detected, interrupting installation"
+			Log "Non-Supported OS detected, interrupting installation." -ToScreen -ToFile
 			exit
 		}
 	}
@@ -347,7 +347,7 @@ function Check-SEPreExistingInstallation {
 	$seDataDir = "$env:ProgramData\ServerEye3"
 
 	if ((-not $SkipInstalledCheck) -and (($PSBoundParameters.ContainsKey('Deploy')) -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir)))) {
-		Log "Stopping Execution: A previous installation was detected."
+		Log "Stopping Execution: A previous installation was detected." -ToScreen -ToFile
 		exit
 	}
 }
@@ -357,12 +357,12 @@ function Check-SEDeployPath {
 		try {
 			$folder = New-Item -Path $DeployPath -ItemType 'Directory' -Force -Confirm:$false
 			if ((-not $folder.Exists) -or (-not $folder.PSIsContainer)) {
-				Write-Log "Stopping Execution: Deployment Path: $DeployPath could not be created."
+				Log "Stopping Execution: Deployment Path: $DeployPath could not be created." -ForegroundColor Red -ToScreen -ToFile
 				exit
 			} else { $DeployPath = $folder.FullName }
 		}
 		catch {
-			Write-Log "Stopping Execution: Deployment Path: $DeployPath could not be created: $($_.Exception.Message)"
+			Log "Stopping Execution: Deployment Path: $DeployPath could not be created: $($_.Exception.Message)" -ForegroundColor Red -ToScreen -ToFile
 			exit
 		}
 	} else {
@@ -371,13 +371,13 @@ function Check-SEDeployPath {
 }
 
 function Download-SEInstallationFiles {
-	Log "Current servereye version is: $SE_version"
-	Log "Starting download of ServerEyeSetup.exe... "
+	Log "Current servereye version is: $SE_version" -ToScreen -ToFile
+	Log "Starting download of ServerEyeSetup.exe... " -ToScreen -ToFile
 	try {
 		$Result = Invoke-WebRequest -Uri "$SE_baseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" -OutFile "$DeployPath\ServerEyeSetup.exe" -ErrorAction Stop
 	}
 	catch {
-		Log "Download failed: `n$($_.Exception.Message)"
+		Log "Download failed: `n$($_.Exception.Message)`nStopping execution." -ToScreen -ToFile
 		exit
 	}
 }
@@ -395,27 +395,27 @@ function Start-SEInstallation {
 		$result = $Host.UI.PromptForChoice($caption, $message, $choices, 1)
 		
 		if ($result -eq 0) {
-			Log "Great, let's continue."
+			Log "Great, let's continue." -ToScreen -ToFile
 		} else {
-			Log "Then we better stop here. Use the parameter '-Deploy Sensorhub' instead."
+			Log "Then we better stop here. Use the parameter '-Deploy Sensorhub' instead. Exiting." -ToScreen -ToFile
 			exit
 		}
 	}
 
-	Write-Log "Starting installation process..."
+	Log "Starting installation process..." -ToScreen -ToFile
 
-	Log "Starting download routine..."
+	Log "Starting download routine..." -ToScreen -ToFile
 	Download-SEInstallationFiles -BaseDownloadUrl $BaseDownloadUrl -Path $Path -proxy $WebProxy
-	Log "Download routine finished."
+	Log "Download routine finished." -ToScreen -ToFile
 
 	$parameterString = ""
 
 	# These are specific to the installation type
 	if ($Deploy -eq "OCC-Connector") {
-		Log "Starting servereye OCC-Connector installation"
+		Log "Starting servereye OCC-Connector installation..." -ToScreen -ToFile
 		$parameterString += "newConnector"
 	} elseif ($Deploy -eq "Sensorhub") {
-		Log "Starting servereye Sensorhub configuration"
+		Log "Starting servereye Sensorhub configuration..." -ToScreen -ToFile
 		$parameterString += "install"
 		$parameterString += " --cID=$ParentGuid"
 	}
@@ -443,16 +443,15 @@ function Start-SEInstallation {
 	if (Test-Path $installerLogPath) {
 		$installerLogContent = Get-Content -Path $installerLogPath -Raw
 		if ($installerLogContent -like "*Successfully installed*") {
-			Log "Installation finished successfully!" -ForegroundColor Green
+			Log "Installation finished successfully!" -ForegroundColor Green -ToScreen -ToFile
 			Log "`nPlease visit https://occ.server-eye.de to add Sensors.`nHave fun!" -ToScreen
 			exit
 		} else {
-			Log "Installation failed!"
-			Log "The installation failed. Please report this to the servereye Helpdesk and include the following file in your Ticket:`n$installerLogPath" -ForegroundColor Red
+			Log "The installation failed. Please report this to the servereye Helpdesk and include the following file in your Ticket:`n$installerLogPath" -ForegroundColor Red -ToScreen -ToFile
 		}
 	} else {
 		Write-Log -Message "Installer log file not found at $installerLogPath" -EventID 666 -EntryType Error
-		Write-Host "The installation was probably successfull, but the ínstaller.log file could not be found at $installerLogPath.`nPlease report this to the servereye Helpdesk." -ForegroundColor Yellow
+		Write-Host "The installation was probably successfull, but the ínstaller.log file could not be found at $installerLogPath.`nPlease report this to the servereye Helpdesk." -ForegroundColor Yellow -ToScreen -ToFile
 	}
 }
 #endregion
