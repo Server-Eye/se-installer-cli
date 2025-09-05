@@ -69,9 +69,6 @@
 
 	.PARAMETER NoExit
     Using this, the script is no longer terminated with "exit", allowing it to be used as part of a greater script.
-
-	.PARAMETER Proxy
-    Proxy seetings if needed
 	
 	.PARAMETER InstallDotNet
     No longer in use, only exists for compatibility reasons
@@ -105,7 +102,7 @@
     Version : 2.0
 	
 	.LINK
-		https://github.com/Server-Eye/se-installer-cli
+	https://github.com/Server-Eye/se-installer-cli
 #>
 #Requires -Version 2
 
@@ -139,30 +136,6 @@ param(
 	[Parameter(Mandatory=$false)]
 	[switch]
 	$Cleanup,
-
-	[Parameter(Mandatory=$false)]
-	[string]
-	$proxyUrl,
-
-	[Parameter(Mandatory=$false)]
-	[string]
-	$proxyPort,
-
-	[Parameter(Mandatory=$false)]
-	[string]
-	$proxyDomain,
-
-	[Parameter(Mandatory=$false)]
-	[string]
-	$proxyUser,
-
-	[Parameter(Mandatory=$false)]
-	[string]
-	$proxyPassword,
-	
-	[Parameter(Mandatory=$false)]
-	[switch]
-	$Silent,
 	
 	[Parameter(Mandatory=$false)]
 	[string]
@@ -182,192 +155,40 @@ param(
 )
 
 #region Utility functions
-function Write-Log {
-	<#
-		.SYNOPSIS
-			A swift logging function.
-		
-		.DESCRIPTION
-			A simple way to produce logs in various formats.
-			Log-Types:
-			- Eventlog (Application --> ServerEyeDeployment)
-			- LogFile (Includes timestamp, EntryType, EventID and Message)
-			- Screen (Includes only the message)
-		
-		.PARAMETER Message
-			The message to log.
-		
-		.PARAMETER Silent
-			Whether anything should be written to host. Is controlled by the closest scoped $_SilentOverride variable, unless specified.
-		
-		.PARAMETER ForegroundColor
-			In what color messages should be written to the host.
-			Ignored if silent is set to true.
-		
-		.PARAMETER NoNewLine
-			Prevents output to host to move on to the next line.
-			Ignored if silent is set to true.
-		
-		.PARAMETER EventID
-			ID of the event as logged to both the eventlog as well as the logfile.
-			Defaults to 1000
-		
-		.PARAMETER EntryType
-			The type of event that is written.
-			By default an information event is written.
-		
-		.PARAMETER LogFilePath
-			The path to the file (including filename) that is written to.
-			Is controlled by the closest scoped $_LogFilePath variable, unless specified.
-		
-		.EXAMPLE
-			PS C:\> Write-Log 'Test Message'
-	
-			Writes the string 'Test Message' with EventID 1000 as an information event into the application eventlog, into the logfile and to the screen.
-		
-		.NOTES
-			Supported Interfaces:
-			------------------------
-			
-			Author:       Friedrich Weinmann
-			Company:      die netzwerker Computernetze GmbH
-			Created:      12.05.2016
-			LastChanged:  12.05.2016
-			Version:      1.0
-	
-			EventIDs:
-			1000 : All is well
-			4*   : Some kind of Error
-			666  : Terminal Error
-	
-			10   : Started Download
-			11   : Finished Download
-			12   : Started Installation
-			13   : Finished Installation
-			14   : Started Configuring Sensorhub
-			15   : Finished Configuriong Sensorhub
-			16   : Started Configuring OCC Connector
-			17   : Finished Configuring Sensorhub
-			
-	#>
-	[CmdletBinding()]
+function Log {
 	Param (
-		[Parameter(Position = 0)]
+		[Parameter(Mandatory=$true, Position=0)]
 		[string]
-		$Message,
-		
-		[bool]
-		$Silent = $_SilentOverride,
-		
-		[System.ConsoleColor]
-		$ForegroundColor,
-		
+		$LogMessage,
+
+		[Parameter(Mandatory=$false)]
 		[switch]
-		$NoNewLine,
-		
-		[Parameter(Position = 1)]
-		[int]
-		$EventID = 1000,
-		
-		[Parameter(Position = 2)]
-		[System.Diagnostics.EventLogEntryType]
-		$EntryType = ([System.Diagnostics.EventLogEntryType]::Information),
-		
+		$LogPath = $LogPath,
+
+		[Parameter(Mandatory=$false)]
+		[switch]
+		$ToScreen = $true,
+
+		[Parameter(Mandatory=$false)]
+		[switch]
+		$ToFile = $true,
+
+		[Parameter(Mandatory=$false)]
 		[string]
-		$LogFilePath = $_LogFilePath
+		$ForegroundColor = "Grey",
+
+		[Parameter(Mandatory=$false)]
+		[string]
+		$BackgroundColor = "Black",
 	)
-	
-	# Log to Eventlog
-	try { Write-EventLog -Message $message -LogName 'Application' -Source 'ServerEyeDeployment' -Category 0 -EventId $EventID -EntryType $EntryType -ErrorAction Stop }
-	catch { }
-	
-	# Log to File
-	try { "$(Get-Date -Format "yyyy-MM-dd HH:mm:ss");$EntryType;$EventID;$Message" | Out-File -FilePath $LogFilePath -Append -Encoding UTF8 -ErrorAction Stop }
-	catch { }
-	
-	# Write to screen
-	if (-not $Silent)
-	{
-		$splat = @{ }
-		$splat['Object'] = $Message
-		if ($PSBoundParameters.ContainsKey('ForegroundColor')) { $splat['ForegroundColor'] = $ForegroundColor }
-		if ($PSBoundParameters.ContainsKey('NoNewLine')) { $splat['NoNewLine'] = $NoNewLine }
-		
-		Write-Host @splat
+
+    $Stamp = (Get-Date).toString("dd/MM/yyyy HH:mm:ss")
+    $LogMessage = "[$Stamp] $LogString"
+	if ($ToScreen) {
+    	Write-Host -Object $LogMessage -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
 	}
-}
-
-function Get-SELatestVersion {
-    $wc = New-Object System.Net.WebClient
-    if (!$Proxy){
-        $WebProxy = New-Object System.Net.WebProxy($proxy, $true)
-        $wc.Proxy = $WebProxy
-    } elseif (($Proxy.gettype()).Name -eq "WebProxy") {
-        $wc.Proxy = $WebProxy
-    } else {
-        $WebProxy = New-Object System.Net.WebProxy($proxy, $true)
-        $wc.Proxy = $WebProxy
-    }
-
-    return $wc.DownloadString("https://occ.server-eye.de/download/se/currentVersion")
-}
-
-function Download-SEFile {
-	[CmdletBinding()]
-	Param (
-		[string]
-		$Url,
-		
-		[string]
-		$TargetFile,
-
-		$Proxy
-	)
-
-	if ([System.IO.File]::Exists($TargetFile)) {
-		Write-Log "Using local file" -ForegroundColor Green
-	} else {	
-		try {
-			$uri = New-Object "System.Uri" "$url"
-			$request = [System.Net.HttpWebRequest]::Create($uri)
-			if (!$Proxy) {
-				$WebProxy = New-Object System.Net.WebProxy($proxy, $true)
-				$request.Proxy = $WebProxy
-			} elseif (($Proxy.gettype()).Name -eq "WebProxy") {
-				$request.Proxy = $WebProxy
-			} else {
-				$WebProxy = New-Object System.Net.WebProxy($proxy, $true)
-				$request.Proxy = $WebProxy
-			}
-			$request.set_Timeout(15000) # 15 second timeout
-			$response = $request.GetResponse()
-			$totalLength = [System.Math]::Floor($response.get_ContentLength()/1024)
-			$responseStream = $response.GetResponseStream()
-			$targetStream = New-Object -TypeName System.IO.FileStream -ArgumentList $targetFile, Create
-			$buffer = New-Object byte[] 10KB
-			$count = $responseStream.Read($buffer, 0, $buffer.length)
-			$downloadedBytes = $count
-			
-			while ($count -gt 0) {
-				$targetStream.Write($buffer, 0, $count)
-				$count = $responseStream.Read($buffer, 0, $buffer.length)
-				$downloadedBytes = $downloadedBytes + $count
-				Write-Progress -activity "Downloading file '$($url.split('/') | Select-Object -Last 1)'" -status "Downloaded ($([System.Math]::Floor($downloadedBytes/1024))K of $($totalLength)K): " -PercentComplete ((([System.Math]::Floor($downloadedBytes/1024)) / $totalLength) * 100)
-			}
-			
-			Write-Progress -activity "Finished downloading file '$($url.split('/') | Select-Object -Last 1)'" -Status "Done" -Completed
-			
-			$targetStream.Flush()
-			$targetStream.Close()
-			$targetStream.Dispose()
-			$responseStream.Dispose()
-
-			Write-Log "done" -ForegroundColor Green
-			
-		} catch {
-			Write-Log -Message "Error downloading: $Url - Interrupting execution - $($_.Exception.Message)" -EventID 666 -EntryType Error
-			Stop-Execution
-		}
+	if ($ToFile) {
+    	Add-Content -Path $LogPath -Value $LogMessage
 	}
 }
 
@@ -380,9 +201,6 @@ function Get-ProgramFilesDirectory {
 }
 
 function Write-SEHeader {
-	# Suppress all text-output in silent mode
-	if ($script:_SilentOverride) { return }
-
 	$AsciiArt_servereye = @"
  ___  ___ _ ____   _____ _ __ ___ _   _  ___ 	
 / __|/ _ \ '__\ \ / / _ \ '__/ _ \ | | |/ _ \
@@ -391,109 +209,83 @@ function Write-SEHeader {
                                    __/ |     
                                   |___/      
 "@
-	Write-Host $AsciiArt_servereye -ForegroundColor DarkYellow
-	Write-Host "                            Version 4.0.$SE_version`n" -ForegroundColor DarkGray
-	Write-Host "Welcome to the silent servereye installer`n"
-}
-
-function Stop-Execution {
-	[CmdletBinding()]
-	Param (
-		[Parameter(Position = 1)]
-		[int]
-		$Number = 1
-	)
-	
-	if ($script:_NoExit) { break main }
-	else { exit $Number }
-}
-
-function Check-ForSuccessfulInstallation {
-
-	switch ($x) {
-		condition {  }
-		Default {}
-	}
-	
+	Log $AsciiArt_servereye -ForegroundColor DarkYellow -ToScreen
+	Log "                            Version 4.0.$SE_version`n" -ForegroundColor Gray -ToScreen
+	Log "Welcome to the silent servereye installer`n" -ForegroundColor Gray -ToScreen
 }
 #endregion
 
 #region Main functions
 function Check-SEInvalidParameterization {
 
-	$Error500Msg = "Server Error: An internal server error occurred. Please check status.server-eye.de for a potential outage.`n If theres no current outage, please contact the servereye Helpdesk."
+	$Error500Msg = "Server Error: An internal server error occurred. Please check status.server-eye.de for a potential outage.`nIf theres no current outage, please contact the servereye Helpdesk."
 	$UnexpectedErrorMsg = "Unexpected Error: An unexpected error occurred with status code $StatusCode. Please report this to the servereye Helpdesk."
 
 	try {
-		Invoke-WebRequest -Method Post -Uri "https://api.server-eye.de/3/auth/login" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop | Out-Null
+		$Result = Invoke-WebRequest -Method Post -Uri "https://api.server-eye.de/3/auth/login" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
 	} catch {
 		$StatusCode = $_.Exception.Response.StatusCode.value__
 		switch ($StatusCode) {
 			401 {
-				Write-Log "Invalid Parameters: The provided API-Key is invalid. Please provide a valid API-Key via '-ApiKey'." -EventID 666 -EntryType Error -ForegroundColor Red
-				Stop-Execution
+				Log "Invalid Parameters: The provided API-Key is invalid. Please provide a valid API-Key via '-ApiKey'."
+				exit
 			}
 			500 {
-				Write-Log $Error500Msg -EventID 666 -EntryType Error -ForegroundColor Red
-				Stop-Execution
+				Log $Error500Msg -ForegroundColor Red
+				exit
 			}
 			default {
-				Write-Log $UnexpectedErrorMsg -EventID 666 -EntryType Error -ForegroundColor Red
-				Stop-Execution
+				Log $UnexpectedErrorMsg -ForegroundColor Red
+				exit
 			}
 		}
 	}
 
 	if ($Deploy -eq "Sensorhub" -and (-not $ParentGuid)) {
-		Write-Log -Message "Invalid Parameters: Please provide the ParentGuid of an OCC-Connector when installing a Sensorhub via '-ParentGuid'" -EventID 666 -EntryType Error
-		$StopExecution = $true
-	}
-
-	if ($proxyUrl -and (-not $proxyPort)) {
-		Write-Log -Message "Invalid Parameters: Proxy URL is set but no port is provided. Please provide a port via '-ProxyPort'." -EventID 666 -EntryType Error
+		Log "Invalid Parameters: Please provide the ParentGuid of an OCC-Connector when installing a Sensorhub via '-ParentGuid'"
 		$StopExecution = $true
 	}
 
 	if ($Deploy -eq "Sensorhub" -and ($ConnectorPort)) {
-		Write-Log -Message "Invalid Parameters: A ConnectorPort can only be specified when installing an OCC-Connector. Don't use -ConnectorPort when installing a Sensorhub." -EventID 666 -EntryType Error
+		Log "Invalid Parameters: A ConnectorPort can only be specified when installing an OCC-Connector. Don't use -ConnectorPort when installing a Sensorhub."
 		$StopExecution = $true
 	}
 
 	try {
-		Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/customer/$CustomerID" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop | Out-Null
+		$Response = Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/customer/$CustomerID" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
 	} catch {
 		$StatusCode = $_.Exception.Response.StatusCode.value__
 		switch ($StatusCode) {
 			403 {
-				Write-Log "Invalid Parameters: A customer with this ID doesn't exist or you don't have access to it. Please check if the provided CustomerID is correct." -EventID 666 -EntryType Error -ForegroundColor Red
+				Log "Invalid Parameters: A customer with this ID doesn't exist or you don't have access to it. Please check if the provided CustomerID is correct."
 			}
 			500 {
-				Write-Log $Error500Msg -EventID 666 -EntryType Error -ForegroundColor Red
-				Stop-Execution
+				Log $Error500Msg -ForegroundColor Red
+				exit
 			}
 			default {
-				Write-Log $UnexpectedErrorMsg -EventID 666 -EntryType Error -ForegroundColor Red
-				Stop-Execution
+				Log $UnexpectedErrorMsg -ForegroundColor Red
+				exit
 			}
 		}
 		$StopExecution = $true
 	}
 
 	try {
-		Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/container/$ParentGuid" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop | Out-Null
+		$Response = Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/container/$ParentGuid" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
 	} catch {
 		$StatusCode = $_.Exception.Response.StatusCode.value__
 		switch ($StatusCode) {
 			404 {
-				Write-Log "Invalid Parameters: An OCC-Connector with this ID doesn't exist or you don't have access to it. Please check if the provided ParentGuid is correct." -EventID 666 -EntryType Error -ForegroundColor Red
+				Log "Invalid Parameters: An OCC-Connector with this ID doesn't exist or you don't have access to it. Please check if the provided ParentGuid is correct."
 			}
 			500 {
-				Write-Log $Error500Msg -EventID 666 -EntryType Error -ForegroundColor Red
-				Stop-Execution
+				Log $Error500Msg -ForegroundColor Red
+				exit
 			}
 			default {
-				Write-Log $UnexpectedErrorMsg -EventID 666 -EntryType Error -ForegroundColor Red
-				Stop-Execution
+				Log $UnexpectedErrorMsg -ForegroundColor Red
+				exit
 			}
 		}
 		$StopExecution = $true
@@ -505,30 +297,30 @@ function Check-SEInvalidParameterization {
 		$StatusCode = $_.Exception.Response.StatusCode.value__
 		switch ($StatusCode) {
 			404 {
-				Write-Log "Invalid Parameters: A Template with this ID doesn't exist or you don't have access to it. Please check if the provided TemplateID is correct." -EventID 666 -EntryType Error -ForegroundColor Red
+				Log "Invalid Parameters: A Template with this ID doesn't exist or you don't have access to it. Please check if the provided TemplateID is correct."
 			}
 			500 {
-				Write-Log $Error500Msg -EventID 666 -EntryType Error -ForegroundColor Red
-				Stop-Execution
+				Log $Error500Msg
+				exit
 			}
 			default {
-				Write-Log $UnexpectedErrorMsg -EventID 666 -EntryType Error -ForegroundColor Red
-				Stop-Execution
+				Log $UnexpectedErrorMsg
+				exit
 			}
 		}
 		$StopExecution = $true
 	}
 
 	if ($StopExecution) {
-		Write-Log -Message "Exiting script due to invalid parameters!" -EventID 666 -EntryType Error -ForegroundColor Red
-		Stop-Execution
+		Log "Exiting script due to invalid parameters!"
+		exit
 	}
 }
 
 function Check-SESupportedOSVersion {
 	if ([environment]::OSVersion.Version.Major -lt 6) {
 		if (-not $script:_SilentOverride) {
-			Write-Log -Message "Your operating system is not officially supported.`nThe install will most likely work but we can no longer provide support for servereye on this system." -EntryType Warning -EventID 400
+			Log "Your operating system is not officially supported.`nThe install will most likely work but we can no longer provide support for servereye on this system."
 			
 			$yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes, continue without support", "The install will continue, but we cannot help you if something doesn't work."
 			$no = New-Object System.Management.Automation.Host.ChoiceDescription "&No, cancel the install", "End the install now."
@@ -537,65 +329,64 @@ function Check-SESupportedOSVersion {
 			$message = "Do you still want to install servereye on this computer?"
 			$result = $Host.UI.PromptForChoice($caption, $message, $choices, 1)
 			if ($result -eq 1) {
-				Write-Log -Message "Execution interrupted by user" -EventID 666 -EntryType Warning -Silent $true
-				Stop-Execution
-			} else { Write-Log -Message "Execution continued by user" -EventID 499 -EntryType Warning -Silent $true }
+				Log "Execution interrupted by user"
+				exit
+			   } else { Log "Execution continued by user" }
 		} else {
-			Write-Log -Message "Non-Supported OS detected, interrupting installation" -EventID 666 -EntryType Error
-			Stop-Execution
+			Log "Non-Supported OS detected, interrupting installation"
+			exit
 		}
 	}
 }
 
-function Check-PreExistingInstallation {
+function Check-SEPreExistingInstallation {
 	$progdir = Get-ProgramFilesDirectory
 	$confDir = "$progdir\Server-Eye\config"
 	$confFileMAC = "$confDir\se3_mac.conf"
 	$confFileCC = "$confDir\se3_cc.conf"
 	$seDataDir = "$env:ProgramData\ServerEye3"
-	
-	if ((-not $SkipInstalledCheck) -and (($PSBoundParameters.ContainsKey('Deploy')) -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir)))) {		
-		Stop-Execution
+
+	if ((-not $SkipInstalledCheck) -and (($PSBoundParameters.ContainsKey('Deploy')) -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir)))) {
+		Log "Stopping Execution: A previous installation was detected."
+		exit
 	}
 }
 
 function Check-SEDeployPath {
-	if (-not (Test-Path $DeployPath))
-	{
-		try
-		{
+	if (-not (Test-Path $DeployPath)) {
+		try {
 			$folder = New-Item -Path $DeployPath -ItemType 'Directory' -Force -Confirm:$false
-			if ((-not $folder.Exists) -or (-not $folder.PSIsContainer))
-			{
+			if ((-not $folder.Exists) -or (-not $folder.PSIsContainer)) {
 				Write-Log "Stopping Execution: Deployment Path: $DeployPath could not be created."
-				Stop-Execution
-			}
-			else { $DeployPath = $folder.FullName }
+				exit
+			} else { $DeployPath = $folder.FullName }
 		}
-		catch
-		{
+		catch {
 			Write-Log "Stopping Execution: Deployment Path: $DeployPath could not be created: $($_.Exception.Message)"
-			Stop-Execution
+			exit
 		}
-	}
-	else
-	{
+	} else {
 		$DeployPath = Get-Item -Path $DeployPath | Select-Object -ExpandProperty FullName -First 1
 	}
 }
 
 function Download-SEInstallationFiles {	
-	Write-Log "Getting current servereye version... "
-	Write-Log "Current servereye version is: $SE_version"
-	Write-Log "Downloading ServerEye.Setup... "
-	Download-SEFile -Url "$SE_baseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" -TargetFile "$DeployPath\ServerEyeSetup.exe" -Proxy $Proxy
+	Log "Current servereye version is: $SE_version"
+	Log "Starting download of ServerEyeSetup.exe... "
+	try {
+		$Result = Invoke-WebRequest -Uri "$SE_baseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" -OutFile "$DeployPath\ServerEyeSetup.exe" -ErrorAction Stop
+	}
+	catch {
+		Log "Download failed: `n$($_.Exception.Message)"
+		exit
+	}
 }
 
-function Start-ServerEyeInstallation {
-	if (-not $Silent) { Write-SEHeader }
+function Start-SEInstallation {
+	Write-SEHeader
 	
-	if ((-not $Silent) -and ($Deploy -eq "OCC-Connector")) {
-		Write-Log -Message "Ensuring user is sure setting up an OCC-Connector is the correct choice" -Silent $true
+	if ($Deploy -eq "OCC-Connector") {
+		Log "Make sure user is sure he wants to install an OCC-Connector..." -ToFile
 		$yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes, I want to install an OCC-Connector", "This will continue to set up the OCC-Connector."
 		$no = New-Object System.Management.Automation.Host.ChoiceDescription "&No.", "This will cancel everything and end this installer."
 		$choices = [System.Management.Automation.Host.ChoiceDescription[]]($yes, $no)
@@ -604,30 +395,27 @@ function Start-ServerEyeInstallation {
 		$result = $Host.UI.PromptForChoice($caption, $message, $choices, 1)
 		
 		if ($result -eq 0) {
-			Write-Host "Great, let's continue."
-			Write-Log "User-Choice: Is sure. Continuing OCC-Connector installation" -Silent $true
+			Log "Great, let's continue."
 		} else {
-			Write-Host "Then we better stop here. Use the switch '-Deploy SensorhubOnly' instead."
-			Write-Log "User-Choice: Is sure of wrong choice. Interrupting OCC-Connector installation" -Silent $true -EventID 1001
-			Stop-Execution
+			Log "Then we better stop here. Use the parameter '-Deploy Sensorhub' instead."
+			exit
 		}
 	}
 
 	Write-Log "Starting installation process..."
 
-	Write-Log "Starting download routine..." -EventID 10
+	Log "Starting download routine..."
 	Download-SEInstallationFiles -BaseDownloadUrl $BaseDownloadUrl -Path $Path -proxy $WebProxy
-	Write-Log "Download routine finished" -EventID 11
+	Log "Download routine finished."
 
-	# Build the parameter string for ServerEyeSetup.exe
 	$parameterString = ""
 
 	# These are specific to the installation type
 	if ($Deploy -eq "OCC-Connector") {
-		Write-Log "Starting servereye OCC-Connector installation" -EventID 16
+		Log "Starting servereye OCC-Connector installation"
 		$parameterString += "newConnector"
 	} elseif ($Deploy -eq "Sensorhub") {
-		Write-Log "Starting servereye Sensorhub configuration" -EventID 14
+		Log "Starting servereye Sensorhub configuration"
 		$parameterString += "install"
 		$parameterString += " --cID=$ParentGuid"
 	}
@@ -655,13 +443,12 @@ function Start-ServerEyeInstallation {
 	if (Test-Path $installerLogPath) {
 		$installerLogContent = Get-Content -Path $installerLogPath -Raw
 		if ($installerLogContent -like "*Successfully installed*") {
-			Write-Log "Installation finished successfully!" -EventID 1 -Silent $true
-			Write-Host "Installation finished successfully!" -ForegroundColor Green
-			Write-Host "`nPlease visit https://occ.server-eye.de to add Sensors.`nHave fun!"
-			Stop-Execution -Number 0
+			Log "Installation finished successfully!" -ForegroundColor Green
+			Log "`nPlease visit https://occ.server-eye.de to add Sensors.`nHave fun!" -ToScreen
+			exit
 		} else {
-			Write-Log -Message "Installation failed!" -EventID 666 -EntryType Error -Silent $true
-			Write-Host "The installation failed. Please report this to the servereye Helpdesk and include the following file in your Ticket:`n$installerLogPath" -ForegroundColor Red
+			Log "Installation failed!"
+			Log "The installation failed. Please report this to the servereye Helpdesk and include the following file in your Ticket:`n$installerLogPath" -ForegroundColor Red
 		}
 	} else {
 		Write-Log -Message "Installer log file not found at $installerLogPath" -EventID 666 -EntryType Error
@@ -671,40 +458,21 @@ function Start-ServerEyeInstallation {
 #endregion
 
 #region Variables
-# Set the global verbosity level
-$script:_SilentOverride = $Silent.ToBool()
-
-# Set global exit preference
-$script:_NoExit = $NoExit.ToBool()
 
 $SE_occServer = "occ.server-eye.de"
 $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
-$SE_Version = Get-SELatestVersion
-
-# Construct the proxy for use in the script from the parameters provided by the user
-if ($proxyUrl -and $proxyPort) {
-	$Proxy = New-Object System.Net.WebProxy($proxyUrl, $proxyPort)
-	if ($proxyDomain -and $proxyUser -and $proxyPassword) {
-		$Proxy.Credentials = New-Object System.Net.NetworkCredential($proxyUser, $proxyPassword, $proxyDomain)
-	}
-} else {
-	$Proxy = $null
-}
+$SE_Version = Invoke-RestMethod -Uri "https://occ.server-eye.de/download/se/currentVersion"
 
 if ($DeployPath -eq "") { $DeployPath = (Resolve-Path .\).Path }
 
-if ($LogFile -eq "") {
-	$script:_LogFilePath = "$env:ProgramData\ServerEye3\logs\Deploy-ServerEye.log"
-} else {
-	$script:_LogFilePath = $LogFile
-}
+$LogPath = "$env:windir\Temp\Deploy-ServerEye.log"
 #endregion
 
 #region Main execution
 Check-SEInvalidParameterization
 Check-SESupportedOSVersion
-Check-PreExistingInstallation
+Check-SEPreExistingInstallation
 Check-SEDeployPath
-Start-ServerEyeInstallation
+Start-SEInstallation
 #endregion
