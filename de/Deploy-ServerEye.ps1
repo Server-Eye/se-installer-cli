@@ -1,106 +1,83 @@
 ﻿#Requires -RunAsAdministrator
 <#
-	TODO: Change the argument descriptions to match the new parameters
-
 	.SYNOPSIS
-    This is the silent servereye installer.
-	
+	Silent installer and deployment script for servereye.
+
 	.DESCRIPTION
-    This script will help to install servereye on systems without a full UI or when a full interactive setup is not needed.
-    The script can be used to:
-    - Download the current version of the client
-    - Install the client
-    - Setup an OCC-Connector or Sensorhub
-    - Create a new customer
-    - Apply a template during installation
-	
-	.PARAMETER Install
-    Installs servereye using the Setup .exe in the same folder as the script
-	
-	.PARAMETER Download
-    Downloads the servereye Setup files for servereye matching the version number of the script.
-	
-	.PARAMETER Offline
-    Skips all online checks. Use this only if the computer does not have an Internet connection.
-    This should really only be used if all else fails. 
-	
+	This script automates the download, installation, and configuration of servereye (OCC-Connector or Sensorhub) on Windows systems.
+	It is designed for unattended or semi-automated deployments, including environments without a full UI.
+	The script supports proxy configuration, parameter validation, and logging.
+	It can be used to:
+	- Download the latest servereye installer
+	- Install and configure an OCC-Connector or Sensorhub
+	- Assign the installation to a customer
+	- Apply a template to the Sensorhub (optional)
+	- Apply tags to the Sensorhub (optional)
+	- Log all actions to a file and to the screen if executed interactively
+
 	.PARAMETER Deploy
-    Assigns the connector to a specific customer.
-	
+	Specify the installation type: "OCC-Connector" or "Sensorhub". Required.
+
 	.PARAMETER CustomerID
-    The customer ID to which the computer is added.
-	
-	.PARAMETER Secret
-    The secret to authenticate the connection.
-	
-	.PARAMETER NodeName
-    Optionally, a nodename can be prespecified.
-	
+	The customer ID to which the system will be assigned. Required.
+
 	.PARAMETER ParentGuid
-    Optionally, this node can be assigned to a specific parent node.
-	
+	(Sensorhub only) The GUID of the parent OCC-Connector.
+
 	.PARAMETER ConnectorPort
-    The port on the connector to connect to.
-    Comes preconfigured with the servereye defaults. Don't change it unless you know what you do.
-
-	.PARAMETER Silent
-    Suppresses all verbosity and all interactive menus.
-    Required for unattended installs.
-
-	.PARAMETER SilentOCCConfirmed
-    Confirms that the OCC Connector should be installed in silent (unattended) mode.
-
-	.PARAMETER DeployPath
-    The folder runtime files (especially downloaded installer files) are stored in.
-    By default, the folder the script was called from. Since this location is not always reliable and sometimes other rules (e.g. Software Restriction Policy) must be honored, this can be configured.
-    If the path is not present, the script will try to create it. If this fails, the script will terminate.
-
-	.PARAMETER ApplyTemplate
-    No longer in use, only exists for compatibility reasons
+	The port to use for the OCC-Connector. Optional.
 
 	.PARAMETER TemplateId
-    The GUID of the template you want to apply to the SensorHub.
+	The ID of the template to apply to the Sensorhub. Optional.
 
 	.PARAMETER ApiKey
-    No longer in use, only exists for compatibility reasons
+	The API key for authentication. Required.
+
+	.PARAMETER Cleanup
+	Switch. If set, cleans up temporary files after installation. Optional.
+
+	.PARAMETER proxyUrl
+	The proxy server URL to use for downloads and API calls. Optional.
+
+	.PARAMETER proxyPort
+	The proxy server port. Optional.
+
+	.PARAMETER proxyDomain
+	The proxy domain for authentication. Optional.
+
+	.PARAMETER proxyUser
+	The proxy username for authentication. Optional.
+
+	.PARAMETER proxyPassword
+	The proxy password for authentication. Optional.
+
+	.PARAMETER Silent
+	Switch. Suppresses all interactive prompts and verbose output. Required for unattended installs.
+
+	.PARAMETER DeployPath
+	The directory where runtime and installer files are stored. Defaults to the script directory. Optional.
+
+	.PARAMETER SkipInstalledCheck
+	Switch. Skips the check for an existing servereye installation. Optional.
 
 	.PARAMETER LogFile
-    Path including filename. Logs messages also to that file.
+	Path to a log file. All log messages will also be written to this file. Optional.
 
 	.PARAMETER NoExit
-    Using this, the script is no longer terminated with "exit", allowing it to be used as part of a greater script.
-	
-	.PARAMETER InstallDotNet
-    No longer in use, only exists for compatibility reasons
-	
+	Switch. Prevents the script from calling 'exit', allowing it to be used in larger automation workflows. Optional.
+
 	.EXAMPLE
-    PS C:\> .\Deploy-ServerEye.ps1 -Download
-    
-    This just downloads the current version of the client setup.
-	
+	PS C:\> .\Deploy-ServerEye.ps1 -Deploy Sensorhub -CustomerID 12345 -ParentGuid 67890 -ApiKey ABCDEFG -Silent
+	Installs a Sensorhub for customer 12345, assigns it to the OCC-Connector 67890, using the provided API key, in silent mode.
+
 	.EXAMPLE
-    PS C:\> .\Deploy-ServerEye.ps1 -Download -Install
-    
-    This will download the current version of ServerEye and install it on this computer.
-	
-	.EXAMPLE
-    PS C:\> .\Deploy-ServerEye.ps1 -Download -Install -Deploy All -Customer XXXXXX -Secret YYYYYY
-    
-    This will download the current version of ServerEye and install it on this computer.
-    This will also set up an OCC-Connector and a Sensorhub on this computer for the given customer.
-    The parameters Customer and Secret are required for this.
-	
-	.EXAMPLE
-    PS C:\> .\Deploy-ServerEye.ps1 -Download -Install -Deploy SenorhubOnly -Customer XXXXXX -Secret YYYYYY -ParentGuid ZZZZZZ
-    
-    This will download the current version of ServerEye and install it on this computer.
-    This will also set up a Sensorhub on this computer for the given customer.
-    The parameters Customer, Secret and ParentGuid are required for this.
-	
+	PS C:\> .\Deploy-ServerEye.ps1 -Deploy OCC-Connector -CustomerID 12345 -ApiKey ABCDEFG -proxyUrl "http://proxy" -proxyPort 8080
+	Installs an OCC-Connector for customer 12345 and configures it to use the specified proxy server.
+
 	.NOTES
-    Author  : servereye
-    Version : 2.0
-	
+	Author  : servereye
+	Version : 2.0
+
 	.LINK
 	https://github.com/Server-Eye/se-installer-cli
 #>
@@ -123,11 +100,19 @@ param(
 	
 	[Parameter(Mandatory=$false)]
 	[string]
-	$ConnectorPort,
-	
+	$TemplateID,
+
+	[Parameter(Mandatory=$false)]
+	[string[]]
+	$TagIDs,
+
 	[Parameter(Mandatory=$false)]
 	[string]
-	$TemplateId,
+	$LogPath = "$env:windir\Temp",
+
+	[Parameter(Mandatory=$true)]
+	[string]
+	$RemoteLogPath,
 	
 	[Parameter(Mandatory=$true)]
 	[string]
@@ -144,53 +129,81 @@ param(
 	[Parameter(Mandatory=$false)]
 	[switch]
     $SkipInstalledCheck,
-	
+
 	[Parameter(Mandatory=$false)]
 	[string]
-	$LogFile,
-	
+	$ConnectorPort,
+
 	[Parameter(Mandatory=$false)]
-	[switch]
-	$NoExit
+	[string]
+	$ProxyUrl,
+
+	[Parameter(Mandatory=$false)]
+	[string]
+	$ProxyPort,
+
+	[Parameter(Mandatory=$false)]
+	[string]
+	$ProxyDomain,
+
+	[Parameter(Mandatory=$false)]
+	[string]
+	$ProxyUser,
+
+	[Parameter(Mandatory=$false)]
+	[string]
+	$ProxyPassword
 )
 
 #region Utility functions
 function Log {
-	Param (
-		[Parameter(Mandatory=$true, Position=0)]
-		[string]
-		$LogMessage,
+    Param (
+        [Parameter(Mandatory=$true, Position=0)]
+        [string]
+        $LogMessage,
 
-		[Parameter(Mandatory=$false)]
-		[switch]
-		$LogPath = $LogPath,
+        [Parameter(Mandatory=$false)]
+        [string]
+        $LogPath = $LogPath,
 
-		[Parameter(Mandatory=$false)]
-		[switch]
-		$ToScreen = $false,
+        [Parameter(Mandatory=$false)]
+        [switch]
+        $ToScreen = $false,
 
-		[Parameter(Mandatory=$false)]
-		[switch]
-		$ToFile = $false,
+        [Parameter(Mandatory=$false)]
+        [switch]
+        $ToFile = $false,
 
-		[Parameter(Mandatory=$false)]
-		[string]
-		$ForegroundColor = "Grey",
+        [Parameter(Mandatory=$false)]
+        [ValidateSet(
+            "Black", "DarkBlue", "DarkGreen", "DarkCyan", "DarkRed", "DarkMagenta",
+            "DarkYellow", "Gray", "DarkGray", "Blue", "Green", "Cyan", "Red",
+            "Magenta", "Yellow", "White"
+        )]
+        [string]
+        $ForegroundColor = "Gray",
 
-		[Parameter(Mandatory=$false)]
-		[string]
-		$BackgroundColor = "Black"
-	)
+        [Parameter(Mandatory=$false)]
+        [ValidateSet(
+            "Black", "DarkBlue", "DarkGreen", "DarkCyan", "DarkRed", "DarkMagenta",
+            "DarkYellow", "Gray", "DarkGray", "Blue", "Green", "Cyan", "Red",
+            "Magenta", "Yellow", "White"
+        )]
+        [string]
+        $BackgroundColor = "Black"
+    )
 
     $Stamp = (Get-Date).toString("dd/MM/yyyy HH:mm:ss")
-    $LogMessage = "[$Stamp] $LogString"
-	if ($ToScreen) {
-    	Write-Host -Object $LogMessage -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
-	}
-	if ($ToFile) {
-    	Add-Content -Path $LogPath -Value $LogMessage
-	}
+    $LogMessage = "[$Stamp] $LogMessage"
+
+    if ($ToScreen) {
+        Write-Host -Object $LogMessage -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
+    }
+    if ($ToFile) {
+        Add-Content -Path $LogPath -Value $LogMessage
+    }
 }
+
 
 function Get-ProgramFilesDirectory {	
 	if (([IntPtr]::Size -eq 8) -eq $true) {
@@ -218,11 +231,8 @@ function Write-SEHeader {
 #region Main functions
 function Check-SEInvalidParameterization {
 
-	$Error500Msg = "Server Error: An internal server error occurred. Please check status.server-eye.de for a potential outage.`nIf theres no current outage, please contact the servereye Helpdesk."
-	$UnexpectedErrorMsg = "Unexpected Error: An unexpected error occurred with status code $StatusCode. Please report this to the servereye Helpdesk."
-
 	try {
-		$Result = Invoke-WebRequest -Method Post -Uri "https://api.server-eye.de/3/auth/login" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
+		$null = Invoke-WebRequest -Method Post -Uri "https://api.server-eye.de/3/auth/login" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
 	} catch {
 		$StatusCode = $_.Exception.Response.StatusCode.value__
 		switch ($StatusCode) {
@@ -252,7 +262,7 @@ function Check-SEInvalidParameterization {
 	}
 
 	try {
-		$Response = Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/customer/$CustomerID" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
+		$null = Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/customer/$CustomerID" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
 	} catch {
 		$StatusCode = $_.Exception.Response.StatusCode.value__
 		switch ($StatusCode) {
@@ -272,7 +282,7 @@ function Check-SEInvalidParameterization {
 	}
 
 	try {
-		$Response = Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/container/$ParentGuid" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
+		$null = Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/container/$ParentGuid" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
 	} catch {
 		$StatusCode = $_.Exception.Response.StatusCode.value__
 		switch ($StatusCode) {
@@ -374,10 +384,10 @@ function Download-SEInstallationFiles {
 	Log "Current servereye version is: $SE_version" -ToScreen -ToFile
 	Log "Starting download of ServerEyeSetup.exe... " -ToScreen -ToFile
 	try {
-		$Result = Invoke-WebRequest -Uri "$SE_baseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" -OutFile "$DeployPath\ServerEyeSetup.exe" -ErrorAction Stop
+		$null = Invoke-WebRequest -Uri "$SE_baseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" -OutFile "$DeployPath\ServerEyeSetup.exe" -ErrorAction Stop
 	}
 	catch {
-		Log "Download failed: `n$($_.Exception.Message)`nStopping execution." -ToScreen -ToFile
+		Log "Download failed:`n$($_.Exception.Message)`nStopping execution." -ToScreen -ToFile
 		exit
 	}
 }
@@ -405,7 +415,7 @@ function Start-SEInstallation {
 	Log "Starting installation process..." -ToScreen -ToFile
 
 	Log "Starting download routine..." -ToScreen -ToFile
-	Download-SEInstallationFiles -BaseDownloadUrl $BaseDownloadUrl -Path $Path -proxy $WebProxy
+	Download-SEInstallationFiles
 	Log "Download routine finished." -ToScreen -ToFile
 
 	$parameterString = ""
@@ -425,10 +435,11 @@ function Start-SEInstallation {
 	if ($CustomerID) { $parameterString += " --customerID=$CustomerID" }
 	if ($TemplateId) { $parameterString += " --templateID=$TemplateId" }
 	if ($ConnectorPort) { $parameterString += " --port=$ConnectorPort" }
-	if ($proxyUrl) { $parameterString += " --proxyUrl=$proxyUrl" }
-	if ($proxyPort) { $parameterString += " --proxyPort=$proxyPort" }
-	if ($proxyDomain) { $parameterString += " --proxyDomain=$proxyDomain" }
-	if ($proxyUser) { $parameterString += " --proxyUser=$proxyUser" }
+	if ($ProxyUrl) { $parameterString += " --proxyUrl=$ProxyUrl" }
+	if ($ProxyPort) { $parameterString += " --proxyPort=$ProxyPort" }
+	if ($ProxyDomain) { $parameterString += " --proxyDomain=$ProxyDomain" }
+	if ($ProxyUser) { $parameterString += " --proxyUser=$ProxyUser" }
+	if ($ProxyPassword) { $parameterString += " --proxyPassword=$ProxyPassword" }
 	if ($Cleanup) { $parameterString += " --cleanup=true" }
 
 	# This always needs to be set
@@ -439,33 +450,85 @@ function Start-SEInstallation {
 	Start-Process -FilePath $setupPath -ArgumentList "ARGUMENTS=`"$parameterString`" /quiet" -Wait -NoNewWindow
 	
 	# Read the content of the installer log file
-	$installerLogPath = "C:\ProgramData\ServerEye3\logs\installer.log"
+	$installerLogPath = "$env:ProgramData\ServerEye3\logs\installer.log"
 	if (Test-Path $installerLogPath) {
 		$installerLogContent = Get-Content -Path $installerLogPath -Raw
 		if ($installerLogContent -like "*Successfully installed*") {
 			Log "Installation finished successfully!" -ForegroundColor Green -ToScreen -ToFile
-			Log "`nPlease visit https://occ.server-eye.de to add Sensors.`nHave fun!" -ToScreen
+			Log "Please visit https://occ.server-eye.de to add Sensors.`nHave fun!" -ToScreen
 			exit
 		} else {
-			Log "The installation failed. Please report this to the servereye Helpdesk and include the following file in your Ticket:`n$installerLogPath" -ForegroundColor Red -ToScreen -ToFile
+			Log "The installation has failed. Please report this to the servereye Helpdesk and include the following file in your Ticket:`n'$installerLogPath'" -ForegroundColor Red -ToScreen -ToFile
 		}
 	} else {
-		Write-Log -Message "Installer log file not found at $installerLogPath" -EventID 666 -EntryType Error
-		Write-Host "The installation was probably successfull, but the ínstaller.log file could not be found at $installerLogPath.`nPlease report this to the servereye Helpdesk." -ForegroundColor Yellow -ToScreen -ToFile
+		Log "The installation was probably successful, but the installer.log file could not be found at '$installerLogPath'.`nPlease report this to the servereye Helpdesk." -ForegroundColor Yellow -ToScreen -ToFile
+	}
+}
+
+function Add-SETags {
+	Log "Starting to add Tags since -TagIDs was passed..." -ToScreen -ToFile
+
+	Log "Waiting for CCService to generate a GUID for the Sensorhub..."
+    for ($i = 1; $i -le 120; $i++) {
+        try {
+            Log "Attempt $($i): Getting new Sensorhub GUID..." -ToScreen -ToFile
+            Start-Sleep -Seconds 10
+            $SensorhubId = (Get-Content $CCConfigPath -ErrorAction Stop | Select-String -Pattern "^guid=").ToString().Split("=")[1].Trim()
+            if (-not $SensorhubId) {
+                if ($i -eq 120) {
+                    Log "Failed to get Sensorhub GUID after 20 minutes, tags can't be added." -ForegroundColor Red -ToScreen -ToFile
+                }
+                continue
+            }
+            Log "New Sensorhub GUID which the tags will be added to: '$SensorhubId'" -ToScreen -ToFile
+            break
+        }
+        catch {
+            Log "Failed to retrieve new Sensorhub GUID. No Tags were added. Error: `n$_" -ForegroundColor Red -ToScreen -ToFile
+        }
+    }
+
+	foreach ($TagID in $TagIDs) {
+		try {
+			$null = Invoke-WebRequest -Method Put -Uri "https://api.server-eye.de/3/container/$SensorhubId/tag/$TagID" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
+			Log "Successfully added Tag with ID '$($TagID)' to the Sensorhub." -ToScreen -ToFile
+		} catch {
+			$StatusCode = $_.Exception.Response.StatusCode.value__
+			switch ($StatusCode) {
+				403 {
+					Log "Failed to add Tag with ID '$($TagID)': You don't have access to this Tag." -ToScreen -ToFile
+				}
+				404 {
+					Log "Failed to add Tag with ID '$($TagID)': A Tag with this ID doesn't exist." -ToScreen -ToFile
+				}
+				500 {
+					Log $Error500Msg -ForegroundColor Red -ToScreen -ToFile
+					exit
+				}
+				default {
+					Log $UnexpectedErrorMsg -ForegroundColor Red -ToScreen -ToFile
+					exit
+				}
+			}
+		}
 	}
 }
 #endregion
 
 #region Variables
+$LogPath = $LogPath | Join-Path -ChildPath "Deploy-ServerEye.log"
+
+$Error500Msg = "Server Error: An internal server error occurred. Please check status.server-eye.de for a potential outage.`nIf theres no current outage, please contact the servereye Helpdesk."
+$UnexpectedErrorMsg = "Unexpected Error: An unexpected error occurred with status code $($_.Exception.Response.StatusCode.value__). Please report this to the servereye Helpdesk."
 
 $SE_occServer = "occ.server-eye.de"
 $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
-$SE_Version = Invoke-RestMethod -Uri "https://occ.server-eye.de/download/se/currentVersion"
+$SE_Version = Invoke-RestMethod -Uri "$SE_baseDownloadUrl/se/currentVersion"
+$ProgramFiles = Get-ProgramFilesDirectory
+$CCConfigPath = "$ProgramFiles\Server-Eye\config\se3_cc.conf"
 
 if ($DeployPath -eq "") { $DeployPath = (Resolve-Path .\).Path }
-
-$LogPath = "$env:windir\Temp\Deploy-ServerEye.log"
 #endregion
 
 #region Main execution
@@ -474,4 +537,9 @@ Check-SESupportedOSVersion
 Check-SEPreExistingInstallation
 Check-SEDeployPath
 Start-SEInstallation
+if ($TagIDs) { Add-SETags }
+if ($RemoteLog) {
+	Copy-Item -Path $LogPath -Destination "$RemoteLog\$env:computername.log" -Force
+}
+Log "Deploy-ServerEye.ps1 finished!" -ToFile -ToScreen
 #endregion
