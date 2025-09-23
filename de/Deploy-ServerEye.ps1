@@ -27,7 +27,7 @@
 	.PARAMETER ConnectorPort
 	The port to use for the OCC-Connector. Optional.
 
-	.PARAMETER TemplateId
+	.PARAMETER TemplateID
 	The ID of the template to apply to the Sensorhub. Optional.
 
 	.PARAMETER ApiKey
@@ -36,19 +36,19 @@
 	.PARAMETER Cleanup
 	Switch. If set, cleans up temporary files after installation. Optional.
 
-	.PARAMETER proxyUrl
+	.PARAMETER ProxyUrl
 	The proxy server URL to use for downloads and API calls. Optional.
 
-	.PARAMETER proxyPort
+	.PARAMETER ProxyPort
 	The proxy server port. Optional.
 
-	.PARAMETER proxyDomain
+	.PARAMETER ProxyDomain
 	The proxy domain for authentication. Optional.
 
-	.PARAMETER proxyUser
+	.PARAMETER ProxyUser
 	The proxy username for authentication. Optional.
 
-	.PARAMETER proxyPassword
+	.PARAMETER ProxyPassword
 	The proxy password for authentication. Optional.
 
 	.PARAMETER Silent
@@ -63,11 +63,8 @@
 	.PARAMETER LogFile
 	Path to a log file. All log messages will also be written to this file. Optional.
 
-	.PARAMETER NoExit
-	Switch. Prevents the script from calling 'exit', allowing it to be used in larger automation workflows. Optional.
-
 	.EXAMPLE
-	PS C:\> .\Deploy-ServerEye.ps1 -Deploy Sensorhub -CustomerID 12345 -ParentGuid 67890 -ApiKey ABCDEFG -Silent
+	PS C:\> .\Deploy-ServerEye.ps1 -Deploy Sensorhub -CustomerID  -ParentGuid 67890 -ApiKey ABCDEFG -Silent
 	Installs a Sensorhub for customer 12345, assigns it to the OCC-Connector 67890, using the provided API key, in silent mode.
 
 	.EXAMPLE
@@ -110,7 +107,7 @@ param(
 	[string]
 	$LogPath = "$env:windir\Temp",
 
-	[Parameter(Mandatory=$true)]
+	[Parameter(Mandatory=$false)]
 	[string]
 	$RemoteLogPath,
 	
@@ -124,7 +121,7 @@ param(
 	
 	[Parameter(Mandatory=$false)]
 	[string]
-	$DeployPath,
+	$DeployPath = $((Resolve-Path .\).Path),
 	
 	[Parameter(Mandatory=$false)]
 	[switch]
@@ -205,7 +202,7 @@ function Log {
 }
 
 
-function Get-ProgramFilesDirectory {	
+function Get-ProgramFilesDirectory {
 	if (([IntPtr]::Size -eq 8) -eq $true) {
 		Get-Item ${Env:ProgramFiles(x86)} | Select-Object -ExpandProperty FullName
 	} else {
@@ -222,14 +219,14 @@ function Write-SEHeader {
                                    __/ |     
                                   |___/      
 "@
-	Log $AsciiArt_servereye -ForegroundColor DarkYellow -ToScreen
-	Log "                            Version 4.0.$SE_version`n" -ForegroundColor Gray -ToScreen
-	Log "Welcome to the silent servereye installer`n" -ForegroundColor Gray -ToScreen
+	Write-Host $AsciiArt_servereye -ForegroundColor DarkYellow
+	Write-Host "                            Version 4.0.$SE_version`n" -ForegroundColor Gray
+	Log "Welcome to the silent servereye installer!" -ForegroundColor Gray -ToScreen
 }
 #endregion
 
 #region Main functions
-function Check-SEInvalidParameterization {
+function Test-SEInvalidParameterization {
 
 	try {
 		$null = Invoke-WebRequest -Method Post -Uri "https://api.server-eye.de/3/auth/login" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
@@ -261,64 +258,48 @@ function Check-SEInvalidParameterization {
 		$StopExecution = $true
 	}
 
-	try {
-		$null = Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/customer/$CustomerID" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
-	} catch {
-		$StatusCode = $_.Exception.Response.StatusCode.value__
-		switch ($StatusCode) {
-			403 {
-				Log "Invalid Parameters: A customer with this ID doesn't exist or you don't have access to it. Please check if the provided CustomerID is correct." -ToScreen -ToFile
+	if ($ParentGuid -and ($Deploy -eq "OCC-Connector")) {
+		try {
+			$null = Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/container/$ParentGuid" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
+		} catch {
+			$StatusCode = $_.Exception.Response.StatusCode.value__
+			switch ($StatusCode) {
+				404 {
+					Log "Invalid Parameters: An OCC-Connector with this ID doesn't exist or you don't have access to it. Please check if the provided ParentGuid is correct." -ToScreen -ToFile
+				}
+				500 {
+					Log $Error500Msg -ForegroundColor Red -ToScreen -ToFile
+					exit
+				}
+				default {
+					Log $UnexpectedErrorMsg -ForegroundColor Red -ToScreen -ToFile
+					exit
+				}
 			}
-			500 {
-				Log $Error500Msg -ForegroundColor Red -ToScreen -ToFile
-				exit
-			}
-			default {
-				Log $UnexpectedErrorMsg -ForegroundColor Red -ToScreen -ToFile
-				exit
-			}
+			$StopExecution = $true
 		}
-		$StopExecution = $true
 	}
 
-	try {
-		$null = Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/container/$ParentGuid" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
-	} catch {
-		$StatusCode = $_.Exception.Response.StatusCode.value__
-		switch ($StatusCode) {
-			404 {
-				Log "Invalid Parameters: An OCC-Connector with this ID doesn't exist or you don't have access to it. Please check if the provided ParentGuid is correct." -ToScreen -ToFile
+	if ($TemplateId) {
+		try {
+			$null = Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/customer/template/$TemplateId/agent" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
+		} catch {
+			$StatusCode = $_.Exception.Response.StatusCode.value__
+			switch ($StatusCode) {
+				404 {
+					Log "Invalid Parameters: A Template with this ID doesn't exist or you don't have access to it. Please check if the provided TemplateID is correct." -ToScreen -ToFile
+				}
+				500 {
+					Log $Error500Msg -ToScreen -ToFile
+					exit
+				}
+				default {
+					Log $UnexpectedErrorMsg -ToScreen -ToFile
+					exit
+				}
 			}
-			500 {
-				Log $Error500Msg -ForegroundColor Red -ToScreen -ToFile
-				exit
-			}
-			default {
-				Log $UnexpectedErrorMsg -ForegroundColor Red -ToScreen -ToFile
-				exit
-			}
+			$StopExecution = $true
 		}
-		$StopExecution = $true
-	}
-
-	try {
-		Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/customer/template/$TemplateId/agent" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop | Out-Null
-	} catch {
-		$StatusCode = $_.Exception.Response.StatusCode.value__
-		switch ($StatusCode) {
-			404 {
-				Log "Invalid Parameters: A Template with this ID doesn't exist or you don't have access to it. Please check if the provided TemplateID is correct." -ToScreen -ToFile
-			}
-			500 {
-				Log $Error500Msg -ToScreen -ToFile
-				exit
-			}
-			default {
-				Log $UnexpectedErrorMsg -ToScreen -ToFile
-				exit
-			}
-		}
-		$StopExecution = $true
 	}
 
 	if ($StopExecution) {
@@ -327,7 +308,7 @@ function Check-SEInvalidParameterization {
 	}
 }
 
-function Check-SESupportedOSVersion {
+function Test-SESupportedOSVersion {
 	if ([environment]::OSVersion.Version.Major -lt 6) {
 		if (-not $script:_SilentOverride) {
 			Log "Your operating system is not officially supported.`nThe install will most likely work but we can no longer provide support for servereye on this system." -ToScreen -ToFile
@@ -349,7 +330,7 @@ function Check-SESupportedOSVersion {
 	}
 }
 
-function Check-SEPreExistingInstallation {
+function Test-SEPreExistingInstallation {
 	$progdir = Get-ProgramFilesDirectory
 	$confDir = "$progdir\Server-Eye\config"
 	$confFileMAC = "$confDir\se3_mac.conf"
@@ -362,7 +343,7 @@ function Check-SEPreExistingInstallation {
 	}
 }
 
-function Check-SEDeployPath {
+function Test-SEDeployPath {
 	if (-not (Test-Path $DeployPath)) {
 		try {
 			$folder = New-Item -Path $DeployPath -ItemType 'Directory' -Force -Confirm:$false
@@ -380,11 +361,11 @@ function Check-SEDeployPath {
 	}
 }
 
-function Download-SEInstallationFiles {
+function Get-SEInstallationFiles {
 	Log "Current servereye version is: $SE_version" -ToScreen -ToFile
 	Log "Starting download of ServerEyeSetup.exe... " -ToScreen -ToFile
 	try {
-		$null = Invoke-WebRequest -Uri "$SE_baseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" -OutFile "$DeployPath\ServerEyeSetup.exe" -ErrorAction Stop
+		$null = Invoke-WebRequest -Uri "$SE_baseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" -OutFile $SetupPath -ErrorAction Stop
 	}
 	catch {
 		Log "Download failed:`n$($_.Exception.Message)`nStopping execution." -ToScreen -ToFile
@@ -415,7 +396,7 @@ function Start-SEInstallation {
 	Log "Starting installation process..." -ToScreen -ToFile
 
 	Log "Starting download routine..." -ToScreen -ToFile
-	Download-SEInstallationFiles
+	Get-SEInstallationFiles
 	Log "Download routine finished." -ToScreen -ToFile
 
 	$parameterString = ""
@@ -425,7 +406,7 @@ function Start-SEInstallation {
 		Log "Starting servereye OCC-Connector installation..." -ToScreen -ToFile
 		$parameterString += "newConnector"
 	} elseif ($Deploy -eq "Sensorhub") {
-		Log "Starting servereye Sensorhub configuration..." -ToScreen -ToFile
+		Log "Starting servereye Sensorhub installation..." -ToScreen -ToFile
 		$parameterString += "install"
 		$parameterString += " --cID=$ParentGuid"
 	}
@@ -446,19 +427,30 @@ function Start-SEInstallation {
 	$parameterString += " --silent=true"
 	
 	# Execute ServerEyeSetup.exe with the constructed parameter string
-	$setupPath = Join-Path -Path $DeployPath -ChildPath "ServerEyeSetup.exe"
-	Start-Process -FilePath $setupPath -ArgumentList "ARGUMENTS=`"$parameterString`" /quiet" -Wait -NoNewWindow
+	try {
+		Start-Process -FilePath $SetupPath -ArgumentList "ARGUMENTS=`"$parameterString`" /quiet" -Wait -NoNewWindow -ErrorAction Stop
+	} catch {
+		Log "ServerEyeSetup.exe failed to start. Please report this to the servereye Helpdesk." -ForegroundColor Red -ToScreen -ToFile
+		exit
+	}
 	
+	# Clean up installation files
+	try {
+		Remove-Item -Path $SetupPath -Force -ErrorAction Stop
+	} catch {
+		Log "Could not remove installation file '$SetupPath'. Please remove it manually." -ForegroundColor Yellow -ToScreen -ToFile
+	}
+
 	# Read the content of the installer log file
 	$installerLogPath = "$env:ProgramData\ServerEye3\logs\installer.log"
 	if (Test-Path $installerLogPath) {
 		$installerLogContent = Get-Content -Path $installerLogPath -Raw
 		if ($installerLogContent -like "*Successfully installed*") {
 			Log "Installation finished successfully!" -ForegroundColor Green -ToScreen -ToFile
-			Log "Please visit https://occ.server-eye.de to add Sensors.`nHave fun!" -ToScreen
-			exit
+			Log "Please visit https://occ.server-eye.de to add Sensors." -ForegroundColor Green -ToScreen
 		} else {
-			Log "The installation has failed. Please report this to the servereye Helpdesk and include the following file in your Ticket:`n'$installerLogPath'" -ForegroundColor Red -ToScreen -ToFile
+			Log "The installation has failed. Please report this to the servereye Helpdesk and include the following file in your ticket: '$installerLogPath'" -ForegroundColor Red -ToScreen -ToFile
+			exit
 		}
 	} else {
 		Log "The installation was probably successful, but the installer.log file could not be found at '$installerLogPath'.`nPlease report this to the servereye Helpdesk." -ForegroundColor Yellow -ToScreen -ToFile
@@ -471,16 +463,15 @@ function Add-SETags {
 	Log "Waiting for CCService to generate a GUID for the Sensorhub..."
     for ($i = 1; $i -le 120; $i++) {
         try {
-            Log "Attempt $($i): Getting new Sensorhub GUID..." -ToScreen -ToFile
             Start-Sleep -Seconds 10
             $SensorhubId = (Get-Content $CCConfigPath -ErrorAction Stop | Select-String -Pattern "^guid=").ToString().Split("=")[1].Trim()
             if (-not $SensorhubId) {
                 if ($i -eq 120) {
                     Log "Failed to get Sensorhub GUID after 20 minutes, tags can't be added." -ForegroundColor Red -ToScreen -ToFile
                 }
+				Log "Attempt $($i): Getting Sensorhub GUID..." -ToScreen -ToFile
                 continue
             }
-            Log "New Sensorhub GUID which the tags will be added to: '$SensorhubId'" -ToScreen -ToFile
             break
         }
         catch {
@@ -516,6 +507,8 @@ function Add-SETags {
 #endregion
 
 #region Variables
+$ProgressPreference = 'SilentlyContinue'
+
 $LogPath = $LogPath | Join-Path -ChildPath "Deploy-ServerEye.log"
 
 $Error500Msg = "Server Error: An internal server error occurred. Please check status.server-eye.de for a potential outage.`nIf theres no current outage, please contact the servereye Helpdesk."
@@ -527,15 +520,14 @@ $SE_cloudIdentifier = "se"
 $SE_Version = Invoke-RestMethod -Uri "$SE_baseDownloadUrl/se/currentVersion"
 $ProgramFiles = Get-ProgramFilesDirectory
 $CCConfigPath = "$ProgramFiles\Server-Eye\config\se3_cc.conf"
-
-if ($DeployPath -eq "") { $DeployPath = (Resolve-Path .\).Path }
+$SetupPath = Join-Path -Path $DeployPath -ChildPath "ServerEyeSetup.exe"
 #endregion
 
 #region Main execution
-Check-SEInvalidParameterization
-Check-SESupportedOSVersion
-Check-SEPreExistingInstallation
-Check-SEDeployPath
+Test-SEInvalidParameterization
+Test-SESupportedOSVersion
+Test-SEPreExistingInstallation
+Test-SEDeployPath
 Start-SEInstallation
 if ($TagIDs) { Add-SETags }
 if ($RemoteLog) {
