@@ -24,9 +24,6 @@
 	.PARAMETER ParentGuid
 	(Sensorhub only) The GUID of the parent OCC-Connector.
 
-	.PARAMETER ConnectorPort
-	The port to use for the OCC-Connector. Optional.
-
 	.PARAMETER TemplateID
 	The ID of the template to apply to the Sensorhub. Optional.
 
@@ -35,6 +32,9 @@
 
 	.PARAMETER Cleanup
 	Switch. If set, cleans up temporary files after installation. Optional.
+
+	.PARAMETER ConnectorPort
+	The port to use for the OCC-Connector. Optional.
 
 	.PARAMETER ProxyUrl
 	The proxy server URL to use for downloads and API calls. Optional.
@@ -51,8 +51,8 @@
 	.PARAMETER ProxyPassword
 	The proxy password for authentication. Optional.
 
-	.PARAMETER Silent
-	Switch. Suppresses all interactive prompts and verbose output. Required for unattended installs.
+	.PARAMETER LogPath
+	Path to where the log file should be created. Defaults to %windir%\Temp. Optional.
 
 	.PARAMETER DeployPath
 	The directory where runtime and installer files are stored. Defaults to the script directory. Optional.
@@ -60,16 +60,16 @@
 	.PARAMETER SkipInstalledCheck
 	Switch. Skips the check for an existing servereye installation. Optional.
 
-	.PARAMETER LogFile
-	Path to a log file. All log messages will also be written to this file. Optional.
+	.PARAMETER Silent
+	Switch. Suppresses all interactive prompts. Required for unattended installs.
 
 	.EXAMPLE
-	PS C:\> .\Deploy-ServerEye.ps1 -Deploy Sensorhub -CustomerID  -ParentGuid 67890 -ApiKey ABCDEFG -Silent
-	Installs a Sensorhub for customer 12345, assigns it to the OCC-Connector 67890, using the provided API key, in silent mode.
+	PS> .\Deploy-ServerEye.ps1 -Deploy "Sensorhub" -ParentGuid "7c8e1a2b-4d5f-4e6b-8c9d-123456789abc" -CustomerID "2f4a50f9-073f-4f26-93e8-978edefd30b0" -ApiKey "3f5a50f9-073f-4f26-93f8-978edefd31d1" -Silent
+	Installs a Sensorhub for the customer, assigns it to the provided OCC-Connector, using the provided API key, in silent mode.
 
 	.EXAMPLE
-	PS C:\> .\Deploy-ServerEye.ps1 -Deploy OCC-Connector -CustomerID 12345 -ApiKey ABCDEFG -proxyUrl "http://proxy" -proxyPort 8080
-	Installs an OCC-Connector for customer 12345 and configures it to use the specified proxy server.
+	PS> .\Deploy-ServerEye.ps1 -Deploy "OCC-Connector" -CustomerID "2f4a50f9-073f-4f26-93e8-978edefd30b0" -TagIDs "1b9f3fd2-dedc-4e8a-904a-5a587c05d132","54f18d21-8a0c-4e33-9421-3e03802680c4" -ApiKey "3f5a50f9-073f-4f26-93f8-978edefd31d1" -ProxyUrl "http://proxy" -ProxyPort 8080
+	Installs an OCC-Connector for the customer and configures it to use the specified proxy server. Also adds the specified Tags to the Sensorhub.
 
 	.NOTES
 	Author  : servereye
@@ -118,7 +118,11 @@ param(
 	[Parameter(Mandatory=$false)]
 	[switch]
 	$Cleanup,
-	
+
+	[Parameter(Mandatory=$false)]
+	[switch]
+	$Silent,
+
 	[Parameter(Mandatory=$false)]
 	[string]
 	$DeployPath = $((Resolve-Path .\).Path),
@@ -229,7 +233,7 @@ function Write-SEHeader {
 function Test-SEInvalidParameterization {
 
 	try {
-		$null = Invoke-WebRequest -Method Post -Uri "https://api.server-eye.de/3/auth/login" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
+		$null = Invoke-WebRequest -Method Post -Uri "https://api.server-eye.de/3/auth/login" -Headers @{ "x-api-key" = $ApiKey } -UseBasicParsing -ErrorAction Stop
 	} catch {
 		$StatusCode = $_.Exception.Response.StatusCode.value__
 		switch ($StatusCode) {
@@ -260,7 +264,7 @@ function Test-SEInvalidParameterization {
 
 	if ($ParentGuid -and ($Deploy -eq "OCC-Connector")) {
 		try {
-			$null = Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/container/$ParentGuid" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
+			$null = Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/container/$ParentGuid" -Headers @{ "x-api-key" = $ApiKey } -UseBasicParsing -ErrorAction Stop
 		} catch {
 			$StatusCode = $_.Exception.Response.StatusCode.value__
 			switch ($StatusCode) {
@@ -282,7 +286,7 @@ function Test-SEInvalidParameterization {
 
 	if ($TemplateId) {
 		try {
-			$null = Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/customer/template/$TemplateId/agent" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
+			$null = Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/customer/template/$TemplateId/agent" -Headers @{ "x-api-key" = $ApiKey } -UseBasicParsing -ErrorAction Stop
 		} catch {
 			$StatusCode = $_.Exception.Response.StatusCode.value__
 			switch ($StatusCode) {
@@ -313,16 +317,22 @@ function Test-SESupportedOSVersion {
 		if (-not $script:_SilentOverride) {
 			Log "Your operating system is not officially supported.`nThe install will most likely work but we can no longer provide support for servereye on this system." -ToScreen -ToFile
 			
-			$yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes, continue without support", "The install will continue, but we cannot help you if something doesn't work."
-			$no = New-Object System.Management.Automation.Host.ChoiceDescription "&No, cancel the install", "End the install now."
-			$choices = [System.Management.Automation.Host.ChoiceDescription[]]($yes, $no)
-			$caption = ""
-			$message = "Do you still want to install servereye on this computer?"
-			$result = $Host.UI.PromptForChoice($caption, $message, $choices, 1)
-			if ($result -eq 1) {
-				Log "Execution interrupted by user" -ToScreen -ToFile
-				exit
-			   } else { Log "Execution continued by user" -ToScreen -ToFile }
+			if ($Silent) {
+				Log "Silent mode: Skipping OS support prompt and auto-confirming installation." -ToScreen -ToFile
+			} else {
+				$yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes, continue without support", "The install will continue, but we cannot help you if something doesn't work."
+				$no = New-Object System.Management.Automation.Host.ChoiceDescription "&No, cancel the install", "End the install now."
+				$choices = [System.Management.Automation.Host.ChoiceDescription[]]($yes, $no)
+				$caption = ""
+				$message = "Do you still want to install servereye on this computer?"
+				$result = $Host.UI.PromptForChoice($caption, $message, $choices, 1)
+				if ($result -eq 1) {
+					Log "Execution interrupted by user" -ToScreen -ToFile
+					exit
+				} else {
+					Log "Execution continued by user" -ToScreen -ToFile
+				}
+			}
 		} else {
 			Log "Non-Supported OS detected, interrupting installation." -ToScreen -ToFile
 			exit
@@ -365,7 +375,7 @@ function Get-SEInstallationFiles {
 	Log "Current servereye version is: $SE_version" -ToScreen -ToFile
 	Log "Starting download of ServerEyeSetup.exe... " -ToScreen -ToFile
 	try {
-		$null = Invoke-WebRequest -Uri "$SE_baseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" -OutFile $SetupPath -ErrorAction Stop
+		$null = Invoke-WebRequest -Uri "$SE_baseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" -OutFile $SetupPath -UseBasicParsing -ErrorAction Stop
 	}
 	catch {
 		Log "Download failed:`n$($_.Exception.Message)`nStopping execution." -ToScreen -ToFile
@@ -374,22 +384,23 @@ function Get-SEInstallationFiles {
 }
 
 function Start-SEInstallation {
-	Write-SEHeader
-	
 	if ($Deploy -eq "OCC-Connector") {
-		Log "Make sure user is sure he wants to install an OCC-Connector..." -ToFile
-		$yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes, I want to install an OCC-Connector", "This will continue to set up the OCC-Connector."
-		$no = New-Object System.Management.Automation.Host.ChoiceDescription "&No.", "This will cancel everything and end this installer."
-		$choices = [System.Management.Automation.Host.ChoiceDescription[]]($yes, $no)
-		$caption = ""
-		$message = "Are you sure you want to install an OCC-Connector? In most cases, only one is needed per network/subnet."
-		$result = $Host.UI.PromptForChoice($caption, $message, $choices, 1)
-		
-		if ($result -eq 0) {
-			Log "Great, let's continue." -ToScreen -ToFile
+		if ($Silent) {
+			Log "Silent mode: Skipping OCC-Connector confirmation prompt and auto-confirming installation." -ToScreen -ToFile
 		} else {
-			Log "Then we better stop here. Use the parameter '-Deploy Sensorhub' instead. Exiting." -ToScreen -ToFile
-			exit
+			Log "Make sure user is sure he wants to install an OCC-Connector..." -ToFile
+			$yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes, I want to install an OCC-Connector", "This will continue to set up the OCC-Connector."
+			$no = New-Object System.Management.Automation.Host.ChoiceDescription "&No.", "This will cancel everything and end this installer."
+			$choices = [System.Management.Automation.Host.ChoiceDescription[]]($yes, $no)
+			$caption = ""
+			$message = "Are you sure you want to install an OCC-Connector? In most cases, only one is needed per network/subnet."
+			$result = $Host.UI.PromptForChoice($caption, $message, $choices, 1)
+			if ($result -eq 0) {
+				Log "Great, let's continue." -ToScreen -ToFile
+			} else {
+				Log "Then we better stop here. Use the parameter '-Deploy Sensorhub' instead. Exiting." -ToScreen -ToFile
+				exit
+			}
 		}
 	}
 
@@ -481,7 +492,7 @@ function Add-SETags {
 
 	foreach ($TagID in $TagIDs) {
 		try {
-			$null = Invoke-WebRequest -Method Put -Uri "https://api.server-eye.de/3/container/$SensorhubId/tag/$TagID" -Headers @{ "x-api-key" = $ApiKey } -ErrorAction Stop
+			$null = Invoke-WebRequest -Method Put -Uri "https://api.server-eye.de/3/container/$SensorhubId/tag/$TagID" -Headers @{ "x-api-key" = $ApiKey } -UseBasicParsing -ErrorAction Stop
 			Log "Successfully added Tag with ID '$($TagID)' to the Sensorhub." -ToScreen -ToFile
 		} catch {
 			$StatusCode = $_.Exception.Response.StatusCode.value__
@@ -504,6 +515,15 @@ function Add-SETags {
 		}
 	}
 }
+
+function Test-SELogSize {
+	if (Test-Path $LogPath) {
+		$logFileInfo = Get-Item $LogPath -ErrorAction SilentlyContinue
+		if ($logFileInfo.Length -gt 1MB) {
+			Remove-Item $LogPath -Force -ErrorAction SilentlyContinue
+		}
+	}
+}
 #endregion
 
 #region Variables
@@ -517,17 +537,19 @@ $UnexpectedErrorMsg = "Unexpected Error: An unexpected error occurred with statu
 $SE_occServer = "occ.server-eye.de"
 $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
-$SE_Version = Invoke-RestMethod -Uri "$SE_baseDownloadUrl/se/currentVersion"
+$SE_Version = Invoke-RestMethod -Uri "$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersion"
 $ProgramFiles = Get-ProgramFilesDirectory
 $CCConfigPath = "$ProgramFiles\Server-Eye\config\se3_cc.conf"
 $SetupPath = Join-Path -Path $DeployPath -ChildPath "ServerEyeSetup.exe"
 #endregion
 
 #region Main execution
+Test-SELogSize
 Test-SEInvalidParameterization
 Test-SESupportedOSVersion
 Test-SEPreExistingInstallation
 Test-SEDeployPath
+Write-SEHeader
 Start-SEInstallation
 if ($TagIDs) { Add-SETags }
 if ($RemoteLog) {
