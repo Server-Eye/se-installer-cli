@@ -52,10 +52,13 @@
 	The proxy password for authentication. Optional.
 
 	.PARAMETER LogPath
-	Path to where the log file should be created. Defaults to %windir%\Temp. Optional.
+	Folder path to where the log file should be created. Defaults to %windir%\Temp. Optional.
+
+	.PARAMETER RemoteLogPath
+	Folder path to where the log file should be copied after execution. Optional.
 
 	.PARAMETER DeployPath
-	The directory where runtime and installer files are stored. Defaults to the script directory. Optional.
+	Folder path to where runtime and installer files are stored. Defaults to the scripts execution directory. Optional.
 
 	.PARAMETER SkipInstalledCheck
 	Switch. Skips the check for an existing servereye installation. Optional.
@@ -551,8 +554,9 @@ Test-SEDeployPath
 Write-SEHeader
 Start-SEInstallation
 if ($TagIDs) { Add-SETags }
-if ($RemoteLog) {
-	Copy-Item -Path $LogPath -Destination "$RemoteLog\$env:computername.log" -Force
+if ($RemoteLogPath) {
+	$RemoteLogPath = $RemoteLogPath | Join-Path -ChildPath "$env:computername.log"
+	Copy-Item -Path $LogPath -Destination $RemoteLogPath -Force
 }
 Log "Deploy-ServerEye.ps1 finished!" -ToFile -ToScreen
 #endregion
