@@ -253,8 +253,7 @@ function Test-SEInvalidParameterization {
 	}
 
 	if ($Deploy -eq "Sensorhub" -and (-not $ParentGuid)) {
-		Log "Invalid Parameters: Please provide the ParentGuid of an OCC-Connector when installing a Sensorhub via '-ParentGuid'" -ToScreen -ToFile
-		$StopExecution = $true
+		Log "Deployment type 'Sensorhub' was chosen, but no ParentGuid was provided. The Sensorhub will choose its OCC-Connector via UPNP discovery." -ToScreen -ToFile
 	}
 
 	if ($Deploy -eq "Sensorhub" -and ($ConnectorPort)) {
