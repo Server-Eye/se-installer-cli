@@ -34,7 +34,7 @@
 	The API key for authentication. Required.
 
 	.PARAMETER Cleanup
-	Switch. If set, cleans up temporary files after installation. Optional.
+	Switch. If set, cleans servereye installation remnants before installing. Optional.
 
 	.PARAMETER ConnectorPort
 	The port to use for the OCC-Connector. Optional.
