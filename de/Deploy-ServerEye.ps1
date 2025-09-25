@@ -27,6 +27,9 @@
 	.PARAMETER TemplateID
 	The ID of the template to apply to the Sensorhub. Optional.
 
+	.PARAMETER TagIDs
+	An array of Tag IDs to assign to the Sensorhub after installation. Optional.
+
 	.PARAMETER ApiKey
 	The API key for authentication. Required.
 
@@ -35,21 +38,6 @@
 
 	.PARAMETER ConnectorPort
 	The port to use for the OCC-Connector. Optional.
-
-	.PARAMETER ProxyUrl
-	The proxy server URL to use for downloads and API calls. Optional.
-
-	.PARAMETER ProxyPort
-	The proxy server port. Optional.
-
-	.PARAMETER ProxyDomain
-	The proxy domain for authentication. Optional.
-
-	.PARAMETER ProxyUser
-	The proxy username for authentication. Optional.
-
-	.PARAMETER ProxyPassword
-	The proxy password for authentication. Optional.
 
 	.PARAMETER LogPath
 	Folder path to where the log file should be created. Defaults to %windir%\Temp. Optional.
@@ -65,6 +53,21 @@
 
 	.PARAMETER Silent
 	Switch. Suppresses all interactive prompts. Required for unattended installs.
+
+	.PARAMETER ProxyUrl
+	The proxy server URL to use for downloads and API calls. Optional.
+
+	.PARAMETER ProxyPort
+	The proxy server port. Optional.
+
+	.PARAMETER ProxyDomain
+	The proxy domain for authentication. Optional.
+
+	.PARAMETER ProxyUser
+	The proxy username for authentication. Optional.
+
+	.PARAMETER ProxyPassword
+	The proxy password for authentication. Optional.
 
 	.EXAMPLE
 	PS> .\Deploy-ServerEye.ps1 -Deploy "Sensorhub" -ParentGuid "7c8e1a2b-4d5f-4e6b-8c9d-123456789abc" -CustomerID "2f4a50f9-073f-4f26-93e8-978edefd30b0" -ApiKey "3f5a50f9-073f-4f26-93f8-978edefd31d1" -Silent
@@ -106,14 +109,6 @@ param(
 	[string[]]
 	$TagIDs,
 
-	[Parameter(Mandatory=$false)]
-	[string]
-	$LogPath = "$env:windir\Temp",
-
-	[Parameter(Mandatory=$false)]
-	[string]
-	$RemoteLogPath,
-	
 	[Parameter(Mandatory=$true)]
 	[string]
 	$ApiKey,
@@ -123,8 +118,16 @@ param(
 	$Cleanup,
 
 	[Parameter(Mandatory=$false)]
-	[switch]
-	$Silent,
+	[string]
+	$ConnectorPort,
+
+	[Parameter(Mandatory=$false)]
+	[string]
+	$LogPath = "$env:windir\Temp",
+
+	[Parameter(Mandatory=$false)]
+	[string]
+	$RemoteLogPath,
 
 	[Parameter(Mandatory=$false)]
 	[string]
@@ -135,8 +138,8 @@ param(
     $SkipInstalledCheck,
 
 	[Parameter(Mandatory=$false)]
-	[string]
-	$ConnectorPort,
+	[switch]
+	$Silent,
 
 	[Parameter(Mandatory=$false)]
 	[string]
