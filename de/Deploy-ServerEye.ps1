@@ -267,7 +267,7 @@ function Test-SEInvalidParameterization {
 		$StopExecution = $true
 	}
 
-	if ($ParentGuid -and ($Deploy -eq "OCC-Connector")) {
+	if ($ParentGuid -and ($Deploy -eq "Sensorhub")) {
 		try {
 			$null = Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/container/$ParentGuid" -Headers @{ "x-api-key" = $ApiKey } -UseBasicParsing -ErrorAction Stop
 		} catch {
