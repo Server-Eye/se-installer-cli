@@ -24,23 +24,19 @@
 
     .NOTES
     Author  : servereye
-    Version : 1.0
+    Version : 1.1
 #>
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $false)]
+    [Parameter(Mandatory = $true)]
     [string]
-    $URL,
-
-    [Parameter(Mandatory = $false)]
-    [string]
-    $FilePath
+    $CustomerID
 )
 
 #region Variables
 $LogPath = "$env:windir\Temp\Deploy-FastContact.log"
-$InstallerPath = "$env:windir\Temp\FastContact.msi"
+$InstallerPath = "$env:windir\Temp\FCInstaller.msi"
 #endregion
 
 #region Functions
@@ -109,7 +105,7 @@ function Test-FastContactInstallation {
 #endregion
 
 #region Main execution
-Log "Welcome to the Fast Contact deployment script v1.0" -ToFile -ToScreen
+Log "Welcome to the Fast Contact deployment script v1.1" -ToFile -ToScreen
 Log "Starting deployment..." -ToFile -ToScreen
 
 if (Test-FastContactInstallation) {
@@ -117,44 +113,24 @@ if (Test-FastContactInstallation) {
     exit
 }
 
-if (-not $URL -and -not $FilePath) {
-    Log "No URL or file path provided for Fast Contact installer. Exiting deployment script." -ForegroundColor Red -ToFile -ToScreen
-    exit
-} elseif ($URL -and $FilePath) {
-    Log "Both URL and file path provided. Please provide only one source for the Fast Contact installer. Exiting deployment script." -ForegroundColor Red -ToFile -ToScreen
-    exit
+try {
+    Log "Downloading Fast Contact installer..." -ToFile -ToScreen
+    $ProgressPreference = "SilentlyContinue"
+    $null = Invoke-WebRequest `
+        -Uri "https://update.server-eye.de/download/FastContact/FCInstaller.msi" `
+        -OutFile $InstallerPath `
+        -UseBasicParsing `
+        -ErrorAction Stop
+    Log "Successfully downloaded Fast Contact installer to '$InstallerPath'." -ToFile -ToScreen
 }
-
-if ($URL) {
-    try {
-        Log "Downloading Fast Contact installer from provided URL..." -ToFile -ToScreen
-        $ProgressPreference = "SilentlyContinue"
-        $null = Invoke-WebRequest `
-            -Uri $URL `
-            -OutFile $InstallerPath `
-            -UseBasicParsing `
-            -ErrorAction Stop
-        Log "Successfully downloaded Fast Contact installer to '$InstallerPath'." -ToFile -ToScreen
-    }
-    catch {
-        Log "Failed to download Fast Contact installer:`n$_" -ForegroundColor Red -ToFile -ToScreen
-        exit
-    }
-} elseif ($FilePath) {
-    try {
-        Log "Using provided file path for Fast Contact installer..." -ToFile -ToScreen
-        Copy-Item -Path $FilePath -Destination $InstallerPath -Force
-        Log "Successfully copied Fast Contact installer to '$InstallerPath'." -ToFile -ToScreen
-    }
-    catch {
-        Log "Failed to copy Fast Contact installer:`n$_" -ForegroundColor Red -ToFile -ToScreen
-        exit
-    }
+catch {
+    Log "Failed to download Fast Contact installer:`n$_" -ForegroundColor Red -ToFile -ToScreen
+    exit
 }
 
 Log "Starting installation of Fast Contact..." -ToFile -ToScreen
 try {
-    Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$InstallerPath`" /qn /norestart" -Wait -NoNewWindow
+    Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$InstallerPath`" CustomerID=`"$CustomerID`" /l*v FCInstaller.log /qn /norestart" -Wait -NoNewWindow
 }
 catch {
     Log "Fast Contact installation failed:`n$_" -ForegroundColor Red -ToFile -ToScreen
@@ -174,6 +150,6 @@ Log "Verifying if installation was successful..." -ToFile -ToScreen
 if (Test-FastContactInstallation) {
     Log "Fast Contact was installed successfully." -ToFile -ToScreen -ForegroundColor Green
 } else {
-    Log "The installation of Fast Contact failed. Please contact the servereye Helpdesk for further assistance." -ForegroundColor Red -ToFile -ToScreen
+    Log "The installation of Fast Contact has failed.`nPlease contact the servereye Helpdesk for further assistance, and include the following file in your request: '$env:windir\Temp\FCInstaller.log'" -ForegroundColor Red -ToFile -ToScreen
 }
 #endregion
