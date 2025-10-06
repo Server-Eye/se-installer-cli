@@ -8,19 +8,15 @@
     First, the script checks if Fast Contact is already installed on the system.
     If not, it downloads the installer from a provided URL or uses a local file path, installs Fast Contact silently, and verifies the installation.
 
-    .PARAMETER URL
-    The URL from which to download the Fast Contact installer. This has to point directly to the .msi file and needs to be a direct download link.
+    .PARAMETER CustomerID
+    The Customer ID for the Fast Contact installation.
 
-    .PARAMETER FilePath
-    The local file path of the Fast Contact installer. This has to point directly to the .msi file.
-
-    .EXAMPLE
-    PS> .\Deploy-FastContact.ps1 -URL "https://example.com/FastContact.msi"
-    Demonstrates how to run the script with a URL to download the installer.
+    .PARAMETER ApiKey
+    The API key for authenticating with the servereye API.
 
     .EXAMPLE
-    PS> .\Deploy-FastContact.ps1 -FilePath "C:\Path\To\FastContact.msi"
-    Demonstrates how to run the script with a local file path to the installer.
+    PS> .\Deploy-FastContact.ps1 -CustomerID "1c06477e-33b9-446e-8e4e-639e9c09b973" -ApiKey "5a8104cc-e09c-44c1-99aa-41f85aba59a8"
+    Demonstrates how to run the script with a CustomerID and ApiKey.
 
     .NOTES
     Author  : servereye
@@ -31,7 +27,11 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]
-    $CustomerID
+    $CustomerID,
+
+    [Parameter(Mandatory = $true)]
+    [string]
+    $ApiKey
 )
 
 #region Variables
@@ -41,40 +41,51 @@ $InstallerPath = "$env:windir\Temp\FCInstaller.msi"
 
 #region Functions
 function Log {
-	Param (
-		[Parameter(Mandatory=$true, Position=0)]
-		[string]
-		$LogMessage,
+    Param (
+        [Parameter(Mandatory=$true, Position=0)]
+        [string]
+        $LogMessage,
 
-		[Parameter(Mandatory=$false)]
-		[string]
-		$LogPath = $LogPath,
+        [Parameter(Mandatory=$false)]
+        [string]
+        $LogPath = $LogPath,
 
-		[Parameter(Mandatory=$false)]
-		[switch]
-		$ToScreen = $false,
+        [Parameter(Mandatory=$false)]
+        [switch]
+        $ToScreen = $false,
 
-		[Parameter(Mandatory=$false)]
-		[switch]
-		$ToFile = $false,
+        [Parameter(Mandatory=$false)]
+        [switch]
+        $ToFile = $false,
 
-		[Parameter(Mandatory=$false)]
-		[string]
-		$ForegroundColor = "Gray",
+        [Parameter(Mandatory=$false)]
+        [ValidateSet(
+            "Black", "DarkBlue", "DarkGreen", "DarkCyan", "DarkRed", "DarkMagenta",
+            "DarkYellow", "Gray", "DarkGray", "Blue", "Green", "Cyan", "Red",
+            "Magenta", "Yellow", "White"
+        )]
+        [string]
+        $ForegroundColor = "Gray",
 
-		[Parameter(Mandatory=$false)]
-		[string]
-		$BackgroundColor = "Black"
-	)
+        [Parameter(Mandatory=$false)]
+        [ValidateSet(
+            "Black", "DarkBlue", "DarkGreen", "DarkCyan", "DarkRed", "DarkMagenta",
+            "DarkYellow", "Gray", "DarkGray", "Blue", "Green", "Cyan", "Red",
+            "Magenta", "Yellow", "White"
+        )]
+        [string]
+        $BackgroundColor = "Black"
+    )
 
     $Stamp = (Get-Date).toString("dd/MM/yyyy HH:mm:ss")
     $LogMessage = "[$Stamp] $LogMessage"
-	if ($ToScreen) {
-    	Write-Host -Object $LogMessage -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
-	}
-	if ($ToFile) {
-    	Add-Content -Path $LogPath -Value $LogMessage
-	}
+
+    if ($ToScreen) {
+        Write-Host -Object $LogMessage -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
+    }
+    if ($ToFile) {
+        Add-Content -Path $LogPath -Value $LogMessage
+    }
 }
 
 function Test-FastContactInstallation {
@@ -128,9 +139,23 @@ catch {
     exit
 }
 
+try {
+    Log "Getting token for customer from servereye API..." -ToFile -ToScreen
+    $Headers = @{
+        "x-api-key" = $ApiKey
+    }
+    $Response = Invoke-WebRequest -Uri "https://fc-ui-api.server-eye.de/customer/$CustomerID/token" -Headers $Headers -Method Get -ContentType "application/json" -UseBasicParsing -ErrorAction Stop
+    $SecurityToken = ($Response.Content | ConvertFrom-Json).token
+    Log "Successfully retrieved token from servereye API." -ToFile -ToScreen
+}
+catch {
+    Log "Failed to get token from servereye API:`n$_" -ForegroundColor Red -ToFile -ToScreen
+    exit
+}
+
 Log "Starting installation of Fast Contact..." -ToFile -ToScreen
 try {
-    Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$InstallerPath`" CustomerID=`"$CustomerID`" /l*v FCInstaller.log /qn /norestart" -Wait -NoNewWindow
+    Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$InstallerPath`" CustomerID=`"$CustomerID`" SecurityToken=`"$SecurityToken`" /l*v FCInstaller.log /qn /norestart" -Wait -NoNewWindow
 }
 catch {
     Log "Fast Contact installation failed:`n$_" -ForegroundColor Red -ToFile -ToScreen
