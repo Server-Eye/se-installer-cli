@@ -36,7 +36,7 @@ param(
 
 #region Variables
 $LogPath = "$env:windir\Temp\Deploy-FastContact.log"
-$InstallerPath = "$env:windir\Temp\FCInstaller.msi"
+$InstallerPath = "$env:windir\Temp\FastContactInstaller.msi"
 #endregion
 
 #region Functions
@@ -128,7 +128,7 @@ try {
     Log "Downloading Fast Contact installer..." -ToFile -ToScreen
     $ProgressPreference = "SilentlyContinue"
     $null = Invoke-WebRequest `
-        -Uri "https://update.server-eye.de/download/FastContact/FCInstaller.msi" `
+        -Uri "https://update.server-eye.de/download/FastContact/FastContactInstaller.msi" `
         -OutFile $InstallerPath `
         -UseBasicParsing `
         -ErrorAction Stop
@@ -155,7 +155,7 @@ catch {
 
 Log "Starting installation of Fast Contact..." -ToFile -ToScreen
 try {
-    Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$InstallerPath`" CustomerID=`"$CustomerID`" SecurityToken=`"$SecurityToken`" /l*v FCInstaller.log /qn /norestart" -Wait -NoNewWindow
+    Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$InstallerPath`" CustomerID=`"$CustomerID`" SecurityToken=`"$SecurityToken`" /l*v FastContactInstaller.log /qn /norestart" -Wait -NoNewWindow
 }
 catch {
     Log "Fast Contact installation failed:`n$_" -ForegroundColor Red -ToFile -ToScreen
