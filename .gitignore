@@ -1,0 +1,10 @@
+################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/.vs/se-installer-cli/v14/.suo
+/de/Deploy-ServerEye_old.ps1
+/de/Deploy-ServerEye_unsigned.ps1~RFa9288ec.TMP
+ServerEye.msi
+Vendor.msi
+*_unsigned.ps1
