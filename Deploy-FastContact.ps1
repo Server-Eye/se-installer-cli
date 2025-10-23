@@ -18,6 +18,11 @@
     PS> .\Deploy-FastContact.ps1 -CustomerID "1c06477e-33b9-446e-8e4e-639e9c09b973" -ApiKey "5a8104cc-e09c-44c1-99aa-41f85aba59a8"
     Demonstrates how to run the script with a CustomerID and ApiKey.
 
+    .EXAMPLE
+    PS> .\Deploy-FastContact.ps1 -ApiKey "5a8104cc-e09c-44c1-99aa-41f85aba59a8"
+    Demonstrates how to run the script with only an ApiKey, letting the script determine the CustomerID if the ApiKey belongs to a mandate user.
+    Note: In this case, the ApiKey must belong to a mandate user with exactly one managed customer.
+
     .NOTES
     Author  : servereye
     Version : 1.1
