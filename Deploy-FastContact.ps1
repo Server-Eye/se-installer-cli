@@ -25,7 +25,7 @@
 
     .NOTES
     Author  : servereye
-    Version : 1.1
+    Version : 1.2
 #>
 
 [CmdletBinding()]
@@ -125,7 +125,7 @@ function Test-FastContactInstallation {
 #endregion
 
 #region Main execution
-Log "Welcome to the Fast Contact deployment script v1.1" -ToFile -ToScreen
+Log "Welcome to the Fast Contact deployment script v1.2" -ToFile -ToScreen
 Log "Starting deployment..." -ToFile -ToScreen
 
 if (Test-FastContactInstallation) {
