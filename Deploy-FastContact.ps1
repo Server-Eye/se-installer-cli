@@ -18,14 +18,19 @@
     PS> .\Deploy-FastContact.ps1 -CustomerID "1c06477e-33b9-446e-8e4e-639e9c09b973" -ApiKey "5a8104cc-e09c-44c1-99aa-41f85aba59a8"
     Demonstrates how to run the script with a CustomerID and ApiKey.
 
+    .EXAMPLE
+    PS> .\Deploy-FastContact.ps1 -ApiKey "5a8104cc-e09c-44c1-99aa-41f85aba59a8"
+    Demonstrates how to run the script with only an ApiKey, letting the script determine the CustomerID if the ApiKey belongs to a mandate user.
+    Note: In this case, the ApiKey must belong to a mandate user with exactly one managed customer.
+
     .NOTES
     Author  : servereye
-    Version : 1.1
+    Version : 1.2
 #>
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $false)]
     [string]
     $CustomerID,
 
@@ -37,6 +42,10 @@ param(
 #region Variables
 $LogPath = "$env:windir\Temp\Deploy-FastContact.log"
 $InstallerPath = "$env:windir\Temp\FastContactInstaller.msi"
+
+$Headers = @{
+    "x-api-key" = $ApiKey
+}
 #endregion
 
 #region Functions
@@ -116,7 +125,7 @@ function Test-FastContactInstallation {
 #endregion
 
 #region Main execution
-Log "Welcome to the Fast Contact deployment script v1.1" -ToFile -ToScreen
+Log "Welcome to the Fast Contact deployment script v1.2" -ToFile -ToScreen
 Log "Starting deployment..." -ToFile -ToScreen
 
 if (Test-FastContactInstallation) {
@@ -139,11 +148,27 @@ catch {
     exit
 }
 
+if (-not $CustomerID) {
+    Log "No CustomerID provided, checking if the API-Key belongs to a mandate user..." -ToFile -ToScreen
+    try {
+        $Response = Invoke-WebRequest -Uri "https://api.server-eye.de/3/me/customer/managing" -Headers $Headers -Method Get -ContentType "application/json" -UseBasicParsing -ErrorAction Stop
+    }
+    catch {
+        Log "Failed to get managed customers from servereye API:`n$_`nExiting script." -ForegroundColor Red -ToFile -ToScreen
+        exit
+    }
+    $ManagedCustomers = $Response | ConvertFrom-Json
+    if ($ManagedCustomers.Count -eq 1) {
+        $CustomerID = $ManagedCustomers[0].customerId
+        Log "Provided API-Key belongs to a mandate user, using CustomerID '$CustomerID' for installation." -ToFile -ToScreen
+    } else {
+        Log "Provided API-Key does not belong to a mandate user, multiple managed customers have been found. Please provide a CustomerID via the script parameter. Exiting script." -ForegroundColor Red -ToFile -ToScreen
+        exit
+    }
+}
+
 try {
     Log "Getting token for customer from servereye API..." -ToFile -ToScreen
-    $Headers = @{
-        "x-api-key" = $ApiKey
-    }
     $Response = Invoke-WebRequest -Uri "https://fc-ui-api.server-eye.de/customer/$CustomerID/token" -Headers $Headers -Method Get -ContentType "application/json" -UseBasicParsing -ErrorAction Stop
     $SecurityToken = ($Response.Content | ConvertFrom-Json).token
     Log "Successfully retrieved token from servereye API." -ToFile -ToScreen
