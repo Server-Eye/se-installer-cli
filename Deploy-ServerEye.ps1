@@ -1,4 +1,4 @@
-﻿﻿#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 <#
 	.SYNOPSIS
 	Silent installer and deployment script for servereye.
@@ -467,7 +467,8 @@ function Start-SEInstallation {
 			exit
 		}
 	} else {
-		Log "The installation has failed since no installer.log was written by the servereye Wizard.`nPlease report this to the servereye Helpdesk." -ForegroundColor Yellow -ToScreen -ToFile
+		Log "The installation has failed since no installer.log was written by the servereye Wizard.`nPlease report this to the servereye Helpdesk and include the following file in your ticket: '$installerLogPath'" -ForegroundColor Red -ToScreen -ToFile
+		exit
 	}
 }
 
