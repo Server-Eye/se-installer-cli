@@ -1,4 +1,4 @@
-﻿#Requires -RunAsAdministrator
+﻿﻿#Requires -RunAsAdministrator
 <#
 	.SYNOPSIS
 	Silent installer and deployment script for servereye.
@@ -248,11 +248,11 @@ function Test-SEInvalidParameterization {
 				exit
 			}
 			500 {
-				Log $Error500Msg -ForegroundColor Red -ToScreen -ToFile
+				Log "Error during check for valid API-Key:`n$Error500Msg" -ForegroundColor Red -ToScreen -ToFile
 				exit
 			}
 			default {
-				Log $UnexpectedErrorMsg -ForegroundColor Red -ToScreen -ToFile
+				Log "Error during check for valid API-Key:`n$UnexpectedErrorMsg" -ForegroundColor Red -ToScreen -ToFile
 				exit
 			}
 		}
@@ -277,12 +277,10 @@ function Test-SEInvalidParameterization {
 					Log "Invalid Parameters: An OCC-Connector with this ID doesn't exist or you don't have access to it. Please check if the provided ParentGuid is correct." -ToScreen -ToFile
 				}
 				500 {
-					Log $Error500Msg -ForegroundColor Red -ToScreen -ToFile
-					exit
+					Log "Error during check for valid ParentGuid:`n$Error500Msg" -ForegroundColor Red -ToScreen -ToFile
 				}
 				default {
-					Log $UnexpectedErrorMsg -ForegroundColor Red -ToScreen -ToFile
-					exit
+					Log "Error during check for valid ParentGuid:`n$UnexpectedErrorMsg" -ForegroundColor Red -ToScreen -ToFile
 				}
 			}
 			$StopExecution = $true
@@ -299,12 +297,10 @@ function Test-SEInvalidParameterization {
 					Log "Invalid Parameters: A Template with this ID doesn't exist or you don't have access to it. Please check if the provided TemplateID is correct." -ToScreen -ToFile
 				}
 				500 {
-					Log $Error500Msg -ToScreen -ToFile
-					exit
+					Log "Error during check for valid TemplateID:`n$Error500Msg" -ToScreen -ToFile
 				}
 				default {
-					Log $UnexpectedErrorMsg -ToScreen -ToFile
-					exit
+					Log "Error during check for valid TemplateID:`n$UnexpectedErrorMsg" -ToScreen -ToFile
 				}
 			}
 			$StopExecution = $true
@@ -424,7 +420,9 @@ function Start-SEInstallation {
 	} elseif ($Deploy -eq "Sensorhub") {
 		Log "Starting servereye Sensorhub installation..." -ToScreen -ToFile
 		$parameterString += "install"
-		$parameterString += " --cID=$ParentGuid"
+		if ($ParentGuid) {
+			$parameterString += " --cID=$ParentGuid"
+		}
 	}
 
 	# These are common to all installations
@@ -469,7 +467,7 @@ function Start-SEInstallation {
 			exit
 		}
 	} else {
-		Log "The installation was probably successful, but the installer.log file could not be found at '$installerLogPath'.`nPlease report this to the servereye Helpdesk." -ForegroundColor Yellow -ToScreen -ToFile
+		Log "The installation has failed since no installer.log was written by the servereye Wizard.`nPlease report this to the servereye Helpdesk." -ForegroundColor Yellow -ToScreen -ToFile
 	}
 }
 
