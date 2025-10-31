@@ -208,9 +208,12 @@ function Log {
     }
     if ($ToFile) {
         Add-Content -Path $LogPath -Value $LogMessage
+		if ($RemoteLogPath) {
+			$FullRemoteLogPath = $RemoteLogPath | Join-Path -ChildPath "$env:computername.log"
+			Add-Content -Path $FullRemoteLogPath -Value $LogMessage
+		}
     }
 }
-
 
 function Get-ProgramFilesDirectory {
 	if (([IntPtr]::Size -eq 8) -eq $true) {
@@ -232,6 +235,11 @@ function Write-SEHeader {
 	Write-Host $AsciiArt_servereye -ForegroundColor DarkYellow
 	Write-Host "                            Version 4.0.$SE_version`n" -ForegroundColor Gray
 	Log "Welcome to the silent servereye installer!" -ForegroundColor Gray -ToScreen
+}
+
+function Exit-Script {
+	
+	exit
 }
 #endregion
 
@@ -348,7 +356,7 @@ function Test-SEPreExistingInstallation {
 	$confFileCC = "$confDir\se3_cc.conf"
 	$seDataDir = "$env:ProgramData\ServerEye3"
 
-	if ((-not $SkipInstalledCheck) -and (($PSBoundParameters.ContainsKey('Deploy')) -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir)))) {
+	if (-not $SkipInstalledCheck.IsPresent -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir))) {
 		Log "Stopping Execution: A previous installation was detected." -ToScreen -ToFile
 		exit
 	}
@@ -556,9 +564,5 @@ Test-SEDeployPath
 Write-SEHeader
 Start-SEInstallation
 if ($TagIDs) { Add-SETags }
-if ($RemoteLogPath) {
-	$RemoteLogPath = $RemoteLogPath | Join-Path -ChildPath "$env:computername.log"
-	Copy-Item -Path $LogPath -Destination $RemoteLogPath -Force
-}
 Log "Deploy-ServerEye.ps1 finished!" -ToFile -ToScreen
 #endregion
