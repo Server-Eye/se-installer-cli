@@ -237,10 +237,6 @@ function Write-SEHeader {
 	Log "Welcome to the silent servereye installer!" -ForegroundColor Gray -ToScreen
 }
 
-function Exit-Script {
-	
-	exit
-}
 #endregion
 
 #region Main functions
