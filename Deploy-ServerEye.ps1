@@ -208,9 +208,12 @@ function Log {
     }
     if ($ToFile) {
         Add-Content -Path $LogPath -Value $LogMessage
+		if ($RemoteLogPath) {
+			$FullRemoteLogPath = $RemoteLogPath | Join-Path -ChildPath "$env:computername.log"
+			Add-Content -Path $FullRemoteLogPath -Value $LogMessage
+		}
     }
 }
-
 
 function Get-ProgramFilesDirectory {
 	if (([IntPtr]::Size -eq 8) -eq $true) {
@@ -233,6 +236,7 @@ function Write-SEHeader {
 	Write-Host "                            Version 4.0.$SE_version`n" -ForegroundColor Gray
 	Log "Welcome to the silent servereye installer!" -ForegroundColor Gray -ToScreen
 }
+
 #endregion
 
 #region Main functions
@@ -248,11 +252,11 @@ function Test-SEInvalidParameterization {
 				exit
 			}
 			500 {
-				Log $Error500Msg -ForegroundColor Red -ToScreen -ToFile
+				Log "Error during check for valid API-Key:`n$Error500Msg" -ForegroundColor Red -ToScreen -ToFile
 				exit
 			}
 			default {
-				Log $UnexpectedErrorMsg -ForegroundColor Red -ToScreen -ToFile
+				Log "Error during check for valid API-Key:`n$UnexpectedErrorMsg" -ForegroundColor Red -ToScreen -ToFile
 				exit
 			}
 		}
@@ -277,12 +281,10 @@ function Test-SEInvalidParameterization {
 					Log "Invalid Parameters: An OCC-Connector with this ID doesn't exist or you don't have access to it. Please check if the provided ParentGuid is correct." -ToScreen -ToFile
 				}
 				500 {
-					Log $Error500Msg -ForegroundColor Red -ToScreen -ToFile
-					exit
+					Log "Error during check for valid ParentGuid:`n$Error500Msg" -ForegroundColor Red -ToScreen -ToFile
 				}
 				default {
-					Log $UnexpectedErrorMsg -ForegroundColor Red -ToScreen -ToFile
-					exit
+					Log "Error during check for valid ParentGuid:`n$UnexpectedErrorMsg" -ForegroundColor Red -ToScreen -ToFile
 				}
 			}
 			$StopExecution = $true
@@ -299,12 +301,10 @@ function Test-SEInvalidParameterization {
 					Log "Invalid Parameters: A Template with this ID doesn't exist or you don't have access to it. Please check if the provided TemplateID is correct." -ToScreen -ToFile
 				}
 				500 {
-					Log $Error500Msg -ToScreen -ToFile
-					exit
+					Log "Error during check for valid TemplateID:`n$Error500Msg" -ToScreen -ToFile
 				}
 				default {
-					Log $UnexpectedErrorMsg -ToScreen -ToFile
-					exit
+					Log "Error during check for valid TemplateID:`n$UnexpectedErrorMsg" -ToScreen -ToFile
 				}
 			}
 			$StopExecution = $true
@@ -352,7 +352,7 @@ function Test-SEPreExistingInstallation {
 	$confFileCC = "$confDir\se3_cc.conf"
 	$seDataDir = "$env:ProgramData\ServerEye3"
 
-	if ((-not $SkipInstalledCheck) -and (($PSBoundParameters.ContainsKey('Deploy')) -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir)))) {
+	if (-not $SkipInstalledCheck.IsPresent -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir))) {
 		Log "Stopping Execution: A previous installation was detected." -ToScreen -ToFile
 		exit
 	}
@@ -424,7 +424,9 @@ function Start-SEInstallation {
 	} elseif ($Deploy -eq "Sensorhub") {
 		Log "Starting servereye Sensorhub installation..." -ToScreen -ToFile
 		$parameterString += "install"
-		$parameterString += " --cID=$ParentGuid"
+		if ($ParentGuid) {
+			$parameterString += " --cID=$ParentGuid"
+		}
 	}
 
 	# These are common to all installations
@@ -469,7 +471,8 @@ function Start-SEInstallation {
 			exit
 		}
 	} else {
-		Log "The installation was probably successful, but the installer.log file could not be found at '$installerLogPath'.`nPlease report this to the servereye Helpdesk." -ForegroundColor Yellow -ToScreen -ToFile
+		Log "The installation has failed since no installer.log was written by the servereye Wizard.`nPlease report this to the servereye Helpdesk and include the following file in your ticket: '$installerLogPath'" -ForegroundColor Red -ToScreen -ToFile
+		exit
 	}
 }
 
@@ -557,9 +560,5 @@ Test-SEDeployPath
 Write-SEHeader
 Start-SEInstallation
 if ($TagIDs) { Add-SETags }
-if ($RemoteLogPath) {
-	$RemoteLogPath = $RemoteLogPath | Join-Path -ChildPath "$env:computername.log"
-	Copy-Item -Path $LogPath -Destination $RemoteLogPath -Force
-}
 Log "Deploy-ServerEye.ps1 finished!" -ToFile -ToScreen
 #endregion
