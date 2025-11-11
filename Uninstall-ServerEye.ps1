@@ -343,11 +343,22 @@ Function Remove-SEAntiRansom {
         $Property
 
     )
-    If ((Get-ItemPropertyValue -Path $Path -Name DefaultLevel) -eq $On) {
-        Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3004 -EntryType Information -Message "Remove Server-Eye Anti-Ransom"
-        Set-ItemProperty -Path $Path -Name $Property -Value $Off
-    }
-
+	
+       $OS=Get-CimInstance -ClassName Win32_OperatingSystem
+    if ($OS.BuildNumber -ge 22621 ){
+		$keys =Get-Childitem hklm:SOFTWARE\Policies\Microsoft\Windows\SRPV2
+		
+		foreach($key in $keys.name){
+			$Key=$key.Replace("HKEY_LOCAL_MACHINE\","HKLM:")
+			set-ItemProperty -Path $key -Name "EnforcementMode" -Value 0
+			Get-ChildItem "C:\Windows\System32\AppLocker\" | Remove-Item -Force
+		}
+    }else{
+		if ((Get-ItemPropertyValue -Path $Path -Name DefaultLevel) -eq $On) {
+			Write-EventLog -LogName $EventLogName -Source $EventSourceName -EventID 3004 -EntryType Information -Message "Remove Server-Eye Anti-Ransom"
+			Set-ItemProperty -Path $ARRegPath -Name $Property -Value $Off
+		}
+	}
 }
 #endregion SEAntiRansom
 
