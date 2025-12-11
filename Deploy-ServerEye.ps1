@@ -256,7 +256,7 @@ function Test-SEInvalidParameterization {
 				exit
 			}
 			default {
-				Log "Error during check for valid API-Key:`n$UnexpectedErrorMsg" -ForegroundColor Red -ToScreen -ToFile
+				Log "Error during check for valid API-Key:`n$($Error[0].Exception.Message)" -ForegroundColor Red -ToScreen -ToFile
 				exit
 			}
 		}
@@ -284,7 +284,7 @@ function Test-SEInvalidParameterization {
 					Log "Error during check for valid ParentGuid:`n$Error500Msg" -ForegroundColor Red -ToScreen -ToFile
 				}
 				default {
-					Log "Error during check for valid ParentGuid:`n$UnexpectedErrorMsg" -ForegroundColor Red -ToScreen -ToFile
+					Log "Error during check for valid ParentGuid:`n$($Error[0].Exception.Message)" -ForegroundColor Red -ToScreen -ToFile
 				}
 			}
 			$StopExecution = $true
@@ -304,7 +304,7 @@ function Test-SEInvalidParameterization {
 					Log "Error during check for valid TemplateID:`n$Error500Msg" -ToScreen -ToFile
 				}
 				default {
-					Log "Error during check for valid TemplateID:`n$UnexpectedErrorMsg" -ToScreen -ToFile
+					Log "Error during check for valid TemplateID:`n$($Error[0].Exception.Message)" -ToScreen -ToFile
 				}
 			}
 			$StopExecution = $true
@@ -516,7 +516,7 @@ function Add-SETags {
 					exit
 				}
 				default {
-					Log $UnexpectedErrorMsg -ForegroundColor Red -ToScreen -ToFile
+					Log "Failed to add Tag with ID '$($TagID)':`n$($Error[0].Exception.Message)" -ForegroundColor Red -ToScreen -ToFile
 					exit
 				}
 			}
@@ -536,12 +536,10 @@ function Test-SELogSize {
 
 #region Variables
 $ProgressPreference = 'SilentlyContinue'
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12 # Ensure TLS 1.2 is used for web requests
 
 $LogPath = $LogPath | Join-Path -ChildPath "Deploy-ServerEye.log"
-
 $Error500Msg = "Server Error: An internal server error occurred. Please check status.server-eye.de for a potential outage.`nIf theres no current outage, please contact the servereye Helpdesk."
-$UnexpectedErrorMsg = "Unexpected Error: An unexpected error occurred with status code $($_.Exception.Response.StatusCode.value__). Please report this to the servereye Helpdesk."
-
 $SE_occServer = "occ.server-eye.de"
 $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
