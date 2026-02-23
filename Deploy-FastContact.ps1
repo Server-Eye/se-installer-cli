@@ -200,6 +200,6 @@ Log "Verifying if installation was successful..." -ToFile -ToScreen
 if (Test-FastContactInstallation) {
     Log "Fast Contact was installed successfully." -ToFile -ToScreen -ForegroundColor Green
 } else {
-    Log "The installation of Fast Contact has failed.`nPlease contact the servereye Helpdesk for further assistance, and include the following file in your request: '$env:windir\Temp\FCInstaller.log'" -ForegroundColor Red -ToFile -ToScreen
+    Log "The installation of Fast Contact has failed.`nPlease contact the servereye Helpdesk for further assistance, and include the following files in your request: `n'$env:windir\Temp\Deploy-FastContact.log'`n'$env:TEMP\FastContactInstaller.log'`n" -ForegroundColor Red -ToFile -ToScreen
 }
 #endregion
