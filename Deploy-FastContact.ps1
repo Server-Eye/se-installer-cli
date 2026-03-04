@@ -9,10 +9,13 @@
     If not, it downloads the installer from a provided URL or uses a local file path, installs Fast Contact silently, and verifies the installation.
 
     .PARAMETER CustomerID
-    The Customer ID for the Fast Contact installation.
+    The Customer ID for the Fast Contact installation. Not required if an ApiKey is provided that belongs to a mandate user with exactly one managed customer.
+
+    .PARAMETER SecurityToken
+    The security token to use for installation when no ApiKey is provided. Not required when providing an ApiKey.
 
     .PARAMETER ApiKey
-    The API key for authenticating with the servereye API.
+    Only required if the script needs to retrieve a SecurityToken for installation or determine the CustomerID based on the API key's associated mandate user.
 
     .EXAMPLE
     PS> .\Deploy-FastContact.ps1 -CustomerID "1c06477e-33b9-446e-8e4e-639e9c09b973" -ApiKey "5a8104cc-e09c-44c1-99aa-41f85aba59a8"
@@ -22,6 +25,10 @@
     PS> .\Deploy-FastContact.ps1 -ApiKey "5a8104cc-e09c-44c1-99aa-41f85aba59a8"
     Demonstrates how to run the script with only an ApiKey, letting the script determine the CustomerID if the ApiKey belongs to a mandate user.
     Note: In this case, the ApiKey must belong to a mandate user with exactly one managed customer.
+
+    .EXAMPLE
+    PS> .\Deploy-FastContact.ps1 -CustomerID "1c06477e-33b9-446e-8e4e-639e9c09b973" -SecurityToken "6a8204dc-e09c-44c1-19ba-41f85aca59c7"
+    Demonstrates how to run the script with a CustomerID and a SecurityToken, without using an ApiKey.
 
     .NOTES
     Author  : servereye
@@ -34,7 +41,11 @@ param(
     [string]
     $CustomerID,
 
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $false)]
+    [string]
+    $SecurityToken,
+
+    [Parameter(Mandatory = $false)]
     [string]
     $ApiKey
 )
@@ -43,8 +54,11 @@ param(
 $LogPath = "$env:windir\Temp\Deploy-FastContact.log"
 $InstallerPath = "$env:windir\Temp\FastContactInstaller.msi"
 
-$Headers = @{
-    "x-api-key" = $ApiKey
+$Headers = $null
+if ($ApiKey) {
+    $Headers = @{
+        "x-api-key" = $ApiKey
+    }
 }
 #endregion
 
@@ -149,6 +163,10 @@ catch {
 }
 
 if (-not $CustomerID) {
+    if (-not $ApiKey) {
+        Log "No CustomerID and no ApiKey provided. Please provide a CustomerID when using SecurityToken. Exiting script." -ForegroundColor Red -ToFile -ToScreen
+        exit
+    }
     Log "No CustomerID provided, checking if the API-Key belongs to a mandate user..." -ToFile -ToScreen
     try {
         $Response = Invoke-WebRequest -Uri "https://api.server-eye.de/3/me/customer/managing" -Headers $Headers -Method Get -ContentType "application/json" -UseBasicParsing -ErrorAction Stop
@@ -167,15 +185,23 @@ if (-not $CustomerID) {
     }
 }
 
-try {
-    Log "Getting token for customer from servereye API..." -ToFile -ToScreen
-    $Response = Invoke-WebRequest -Uri "https://fc-ui-api.server-eye.de/customer/$CustomerID/token" -Headers $Headers -Method Get -ContentType "application/json" -UseBasicParsing -ErrorAction Stop
-    $SecurityToken = ($Response.Content | ConvertFrom-Json).token
-    Log "Successfully retrieved token from servereye API." -ToFile -ToScreen
-}
-catch {
-    Log "Failed to get token from servereye API:`n$_" -ForegroundColor Red -ToFile -ToScreen
-    exit
+if (-not $ApiKey) {
+    if (-not $SecurityToken) {
+        Log "No ApiKey provided and no SecurityToken provided. Exiting script." -ForegroundColor Red -ToFile -ToScreen
+        exit
+    }
+    Log "Using provided SecurityToken for installation (no ApiKey supplied)." -ToFile -ToScreen
+} else {
+    try {
+        Log "Getting token for customer from servereye API..." -ToFile -ToScreen
+        $Response = Invoke-WebRequest -Uri "https://fc-ui-api.server-eye.de/customer/$CustomerID/token" -Headers $Headers -Method Get -ContentType "application/json" -UseBasicParsing -ErrorAction Stop
+        $SecurityToken = ($Response.Content | ConvertFrom-Json).token
+        Log "Successfully retrieved token from servereye API." -ToFile -ToScreen
+    }
+    catch {
+        Log "Failed to get token from servereye API:`n$_" -ForegroundColor Red -ToFile -ToScreen
+        exit
+    }
 }
 
 Log "Starting installation of Fast Contact..." -ToFile -ToScreen
