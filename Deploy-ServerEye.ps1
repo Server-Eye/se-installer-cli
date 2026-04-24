@@ -46,7 +46,7 @@
 	Folder path to where the log file should be copied after execution. Optional.
 
 	.PARAMETER DeployPath
-	Folder path to where runtime and installer files are stored. Defaults to the scripts execution directory. Optional.
+	Folder path to where runtime and installer files are stored. Defaults to C:\. Optional.
 
 	.PARAMETER SkipInstalledCheck
 	Switch. Skips the check for an existing servereye installation. Optional.
@@ -131,7 +131,7 @@ param(
 
 	[Parameter(Mandatory=$false)]
 	[string]
-	$DeployPath = $((Resolve-Path .\).Path),
+	$DeployPath = $env:SystemDrive,
 	
 	[Parameter(Mandatory=$false)]
 	[switch]
@@ -352,7 +352,7 @@ function Test-SEPreExistingInstallation {
 	$confFileCC = "$confDir\se3_cc.conf"
 	$seDataDir = "$env:ProgramData\ServerEye3"
 
-	if (-not $SkipInstalledCheck.IsPresent -and ((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir))) {
+	if (((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir))) {
 		Log "Stopping Execution: A previous installation was detected." -ToScreen -ToFile
 		exit
 	}
@@ -446,9 +446,9 @@ function Start-SEInstallation {
 	
 	# Execute ServerEyeSetup.exe with the constructed parameter string
 	try {
-		Start-Process -FilePath $SetupPath -ArgumentList "ARGUMENTS=`"$parameterString`" /quiet" -Wait -NoNewWindow -ErrorAction Stop
+		Start-Process -FilePath $SetupPath -ArgumentList "ARGUMENTS=`"$parameterString`" /quiet" -Wait -ErrorAction Stop
 	} catch {
-		Log "ServerEyeSetup.exe failed to start. Please report this to the servereye Helpdesk." -ForegroundColor Red -ToScreen -ToFile
+		Log "ServerEyeSetup.exe failed to start. Please report this to the servereye Helpdesk. Error: `n$($_.Exception.Message)" -ForegroundColor Red -ToScreen -ToFile
 		exit
 	}
 	
@@ -471,7 +471,8 @@ function Start-SEInstallation {
 			exit
 		}
 	} else {
-		Log "The installation has failed since no installer.log was written by the servereye Wizard.`nPlease report this to the servereye Helpdesk and include the following file in your ticket: '$installerLogPath'" -ForegroundColor Red -ToScreen -ToFile
+		$msiLogs = Get-ChildItem -Path $env:TEMP -Filter "Server-Eye*.log" | Sort-Object LastWriteTime -Descending | Select-Object -ExpandProperty Name
+		Log "The installation has failed since no installer.log was written by the servereye Wizard.`nPlease report this to the servereye Helpdesk and include the following files in your ticket: `n$($msiLogs -join "`n")" -ForegroundColor Red -ToScreen -ToFile
 		exit
 	}
 }
@@ -494,7 +495,8 @@ function Add-SETags {
             break
         }
         catch {
-            Log "Failed to retrieve new Sensorhub GUID. No Tags were added. Error: `n$_" -ForegroundColor Red -ToScreen -ToFile
+            $ErrorMessage = $_.Exception.Message
+            Log "Failed to retrieve new Sensorhub GUID. No Tags were added. Error: `n$ErrorMessage" -ForegroundColor Red -ToScreen -ToFile
         }
     }
 
@@ -516,7 +518,8 @@ function Add-SETags {
 					exit
 				}
 				default {
-					Log "Failed to add Tag with ID '$($TagID)':`n$($Error[0].Exception.Message)" -ForegroundColor Red -ToScreen -ToFile
+					$ErrorMessage = $_.Exception.Message
+					Log "Failed to add Tag with ID '$($TagID)':`n$ErrorMessage" -ForegroundColor Red -ToScreen -ToFile
 					exit
 				}
 			}
@@ -553,7 +556,7 @@ $SetupPath = Join-Path -Path $DeployPath -ChildPath "ServerEyeSetup.exe"
 Test-SELogSize
 Test-SEInvalidParameterization
 Test-SESupportedOSVersion
-Test-SEPreExistingInstallation
+if (-not $SkipInstalledCheck) { Test-SEPreExistingInstallation }
 Test-SEDeployPath
 Write-SEHeader
 Start-SEInstallation
