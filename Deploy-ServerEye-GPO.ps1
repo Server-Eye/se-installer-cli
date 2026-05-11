@@ -46,11 +46,13 @@ $DownloadTarget = "$env:windir\Temp\Deploy-ServerEye.ps1"
 
 #region Download
 $WebClient = New-Object System.Net.WebClient
-$WebProxy  = New-Object System.Net.WebProxy($ProxyUrl, $true)
-if ($ProxyUser) {
-	$WebProxy.Credentials = New-Object System.Net.NetworkCredential($ProxyUser, $ProxyPassword, $ProxyDomain)
+if ($ProxyUrl -ne "") {
+	$WebProxy  = New-Object System.Net.WebProxy($ProxyUrl, $true)
+	if ($ProxyUser) {
+		$WebProxy.Credentials = New-Object System.Net.NetworkCredential($ProxyUser, $ProxyPassword, $ProxyDomain)
+	}
+	$WebClient.Proxy = $WebProxy
 }
-$WebClient.Proxy = $WebProxy
 
 try {
 	$WebClient.DownloadFile($DownloadUrl, $DownloadTarget)
