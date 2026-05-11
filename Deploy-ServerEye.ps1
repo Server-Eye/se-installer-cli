@@ -550,7 +550,8 @@ function Start-SEInstallation {
 	
 	# Execute ServerEyeSetup.exe with the constructed parameter string
 	try {
-		Start-Process -FilePath $SetupPath -ArgumentList "ARGUMENTS=`"$parameterString`" /quiet" -Wait -ErrorAction Stop
+		$installerProcess = Start-Process -FilePath $SetupPath -ArgumentList "ARGUMENTS=\`\"$parameterString\`\" /quiet" -Wait -PassThru -ErrorAction Stop
+		Log "ServerEyeSetup.exe finished with exit code $($installerProcess.ExitCode)." -ToScreen -ToFile
 	} catch {
 		Log "ServerEyeSetup.exe failed to start. Please report this to the servereye Helpdesk. Error: `n$($_.Exception.Message)" -ForegroundColor Red -ToScreen -ToFile
 		exit
