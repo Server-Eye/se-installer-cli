@@ -17,6 +17,8 @@ $TemplateId         = ""     # Template ID to apply to the Sensorhub
 $TagIDs             = ""     # Comma-separated Tag IDs to assign to the Sensorhub, e.g. "id1,id2"
 $ConnectorPort      = ""     # Custom port for the OCC-Connector (OCC-Connector only)
 $DeployPath         = ""     # Folder where the installer is saved during deployment; leave empty for default (system drive)
+$LogPath            = ""     # Folder where log files are saved; leave empty for default (%windir%\Temp)
+$RemoteLogPath      = ""     # Folder on a remote share where a copy of the log is saved, e.g. "\\server\share\logs"
 $Cleanup            = ""     # Set to "true" to clean up servereye remnants before installing
 $SkipInstalledCheck = ""     # Set to "true" to skip check for an existing servereye installation
 
@@ -42,6 +44,18 @@ $ProgressPreference = 'SilentlyContinue'
 
 $DownloadUrl    = "https://occ.server-eye.de/download/se/Deploy-ServerEye.ps1"
 $DownloadTarget = "$env:windir\Temp\Deploy-ServerEye.ps1"
+
+$ResolvedLogPath = if ($LogPath -ne "") { $LogPath } else { "$env:windir\Temp" }
+$TranscriptPath  = Join-Path $ResolvedLogPath "Deploy-ServerEye-GPO.log"
+#endregion
+
+#region Transcript
+if (Test-Path $TranscriptPath) { Remove-Item $TranscriptPath -Force -ErrorAction SilentlyContinue }
+if ($RemoteLogPath -ne "") {
+	$RemoteTranscriptPath = Join-Path $RemoteLogPath "$env:COMPUTERNAME-GPO.log"
+	if (Test-Path $RemoteTranscriptPath) { Remove-Item $RemoteTranscriptPath -Force -ErrorAction SilentlyContinue }
+}
+Start-Transcript -Path $TranscriptPath -Force
 #endregion
 
 #region Download
@@ -58,11 +72,18 @@ try {
 	$WebClient.DownloadFile($DownloadUrl, $DownloadTarget)
 } catch {
 	Write-Error "Failed to download Deploy-ServerEye.ps1: $($_.Exception.Message)"
-	exit 1
+	$DownloadFailed = $true
 }
 #endregion
 
 #region Execution
+if ($DownloadFailed) {
+	Stop-Transcript
+	if ($RemoteLogPath -ne "") {
+		Copy-Item -Path $TranscriptPath -Destination $RemoteTranscriptPath -Force -ErrorAction SilentlyContinue
+	}
+	exit 1
+}
 $DeployParams = @{
 	Deploy     = $Deploy
 	CustomerID = $CustomerID
@@ -75,6 +96,8 @@ if ($TemplateId -ne "")         { $DeployParams.TemplateId           = $Template
 if ($TagIDs -ne "")             { $DeployParams.TagIDs               = $TagIDs -split "," }
 if ($ConnectorPort -ne "")      { $DeployParams.ConnectorPort        = $ConnectorPort }
 if ($DeployPath -ne "")         { $DeployParams.DeployPath           = $DeployPath }
+if ($LogPath -ne "")            { $DeployParams.LogPath              = $LogPath }
+if ($RemoteLogPath -ne "")      { $DeployParams.RemoteLogPath        = $RemoteLogPath }
 if ($Cleanup -ne "")            { $DeployParams.Cleanup              = $true }
 if ($SkipInstalledCheck -ne "") { $DeployParams.SkipInstalledCheck   = $true }
 if ($ProxyUrl -ne "")           { $DeployParams.ProxyUrl             = $ProxyUrl; $DeployParams.proxy = $WebProxy }
@@ -84,4 +107,11 @@ if ($ProxyUser -ne "")          { $DeployParams.ProxyUser            = $ProxyUse
 if ($ProxyPassword -ne "")      { $DeployParams.ProxyPassword        = $ProxyPassword }
 
 & $DownloadTarget @DeployParams
+#endregion
+
+#region Cleanup
+Stop-Transcript
+if ($RemoteLogPath -ne "") {
+	Copy-Item -Path $TranscriptPath -Destination $RemoteTranscriptPath -Force -ErrorAction SilentlyContinue
+}
 #endregion
