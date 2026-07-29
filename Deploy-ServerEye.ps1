@@ -89,11 +89,12 @@
 [CmdletBinding(DefaultParameterSetName ='None')]
 param(
 	[Parameter(Mandatory=$true)]
-	[ValidateSet("OCC-Connector", "Sensorhub")]
+	[ValidateSet("OCC-Connector", "Sensorhub", "SensorhubOnly")]
 	[string]
 	$Deploy,
 	
 	[Parameter(Mandatory=$true)]
+	[Alias("Customer")]
 	[string]
 	$CustomerID,
 	
@@ -122,6 +123,7 @@ param(
 	$ConnectorPort,
 
 	[Parameter(Mandatory=$false)]
+	[Alias("LogFile")]
 	[string]
 	$LogPath = "$env:windir\Temp",
 
@@ -134,6 +136,7 @@ param(
 	$DeployPath = $env:SystemDrive,
 	
 	[Parameter(Mandatory=$false)]
+	[Alias("SkipLogInstalledCheck")]
 	[switch]
     $SkipInstalledCheck,
 
@@ -159,7 +162,28 @@ param(
 
 	[Parameter(Mandatory=$false)]
 	[string]
-	$ProxyPassword
+	$ProxyPassword,
+
+	# Legacy parameters for backward compatibility with the old gpo_install.ps1 script
+	[Parameter(Mandatory=$false)]
+	[switch]
+	$Download,
+
+	[Parameter(Mandatory=$false)]
+	[switch]
+	$Install,
+
+	[Parameter(Mandatory=$false)]
+	[switch]
+	$ApplyTemplate,
+
+	[Parameter(Mandatory=$false)]
+	[string]
+	$Secret,
+
+	[Parameter(Mandatory=$false)]
+	[object]
+	$proxy
 )
 
 #region Utility functions
@@ -182,22 +206,12 @@ function Log {
         $ToFile = $false,
 
         [Parameter(Mandatory=$false)]
-        [ValidateSet(
-            "Black", "DarkBlue", "DarkGreen", "DarkCyan", "DarkRed", "DarkMagenta",
-            "DarkYellow", "Gray", "DarkGray", "Blue", "Green", "Cyan", "Red",
-            "Magenta", "Yellow", "White"
-        )]
-        [string]
-        $ForegroundColor = "Gray",
+        [System.ConsoleColor]
+        $ForegroundColor = $Host.UI.RawUI.ForegroundColor,
 
         [Parameter(Mandatory=$false)]
-        [ValidateSet(
-            "Black", "DarkBlue", "DarkGreen", "DarkCyan", "DarkRed", "DarkMagenta",
-            "DarkYellow", "Gray", "DarkGray", "Blue", "Green", "Cyan", "Red",
-            "Magenta", "Yellow", "White"
-        )]
-        [string]
-        $BackgroundColor = "Black"
+        [System.ConsoleColor]
+        $BackgroundColor = $Host.UI.RawUI.BackgroundColor
     )
 
     $Stamp = (Get-Date).toString("dd/MM/yyyy HH:mm:ss")
@@ -213,6 +227,97 @@ function Log {
 			Add-Content -Path $FullRemoteLogPath -Value $LogMessage
 		}
     }
+}
+
+function Invoke-SEWebRequest {
+	Param (
+		[Parameter(Mandatory=$false)]
+		[string]
+		$Method = "Get",
+
+		[Parameter(Mandatory=$true)]
+		[string]
+		$Uri,
+
+		[Parameter(Mandatory=$false)]
+		[hashtable]
+		$Headers,
+
+		[Parameter(Mandatory=$false)]
+		[string]
+		$OutFile,
+
+		[Parameter(Mandatory=$false)]
+		[int]
+		$MaxRetries = 3,
+
+		[Parameter(Mandatory=$false)]
+		[int]
+		$RetryDelaySec = 5
+	)
+
+	for ($Attempt = 1; $Attempt -le $MaxRetries; $Attempt++) {
+		try {
+			$Params = @{
+				Method          = $Method
+				Uri             = $Uri
+				UseBasicParsing = $true
+				ErrorAction     = 'Stop'
+			}
+			if ($Headers) { $Params.Headers = $Headers }
+			if ($OutFile)  { $Params.OutFile  = $OutFile }
+			return Invoke-WebRequest @Params
+		} catch {
+			$StatusCode = $_.Exception.Response.StatusCode.value__
+			# Do not retry on client errors (4xx) - these indicate invalid input, not transient failures
+			if ($StatusCode -ge 400 -and $StatusCode -lt 500) { throw }
+			if ($Attempt -eq $MaxRetries) { throw }
+			Log "Request to '$Uri' failed (attempt $Attempt of $MaxRetries). Retrying in $RetryDelaySec seconds..." -ToScreen -ToFile
+			Start-Sleep -Seconds $RetryDelaySec
+		}
+	}
+}
+
+function Invoke-SERestMethod {
+	Param (
+		[Parameter(Mandatory=$false)]
+		[string]
+		$Method = "Get",
+
+		[Parameter(Mandatory=$true)]
+		[string]
+		$Uri,
+
+		[Parameter(Mandatory=$false)]
+		[hashtable]
+		$Headers,
+
+		[Parameter(Mandatory=$false)]
+		[int]
+		$MaxRetries = 3,
+
+		[Parameter(Mandatory=$false)]
+		[int]
+		$RetryDelaySec = 5
+	)
+
+	for ($Attempt = 1; $Attempt -le $MaxRetries; $Attempt++) {
+		try {
+			$Params = @{
+				Method      = $Method
+				Uri         = $Uri
+				ErrorAction = 'Stop'
+			}
+			if ($Headers) { $Params.Headers = $Headers }
+			return Invoke-RestMethod @Params
+		} catch {
+			$StatusCode = $_.Exception.Response.StatusCode.value__
+			if ($StatusCode -ge 400 -and $StatusCode -lt 500) { throw }
+			if ($Attempt -eq $MaxRetries) { throw }
+			Log "Request to '$Uri' failed (attempt $Attempt of $MaxRetries). Retrying in $RetryDelaySec seconds..." -ToScreen -ToFile
+			Start-Sleep -Seconds $RetryDelaySec
+		}
+	}
 }
 
 function Get-ProgramFilesDirectory {
@@ -243,7 +348,7 @@ function Write-SEHeader {
 function Test-SEInvalidParameterization {
 
 	try {
-		$null = Invoke-WebRequest -Method Post -Uri "https://api.server-eye.de/3/auth/login" -Headers @{ "x-api-key" = $ApiKey } -UseBasicParsing -ErrorAction Stop
+		$null = Invoke-SEWebRequest -Method Post -Uri "https://api.server-eye.de/3/auth/login" -Headers @{ "x-api-key" = $ApiKey }
 	} catch {
 		$StatusCode = $_.Exception.Response.StatusCode.value__
 		switch ($StatusCode) {
@@ -256,7 +361,7 @@ function Test-SEInvalidParameterization {
 				exit
 			}
 			default {
-				Log "Error during check for valid API-Key:`n$($Error[0].Exception.Message)" -ForegroundColor Red -ToScreen -ToFile
+				Log "Error during check for valid API-Key:`n$($_.Exception.Message)" -ForegroundColor Red -ToScreen -ToFile
 				exit
 			}
 		}
@@ -273,7 +378,7 @@ function Test-SEInvalidParameterization {
 
 	if ($ParentGuid -and ($Deploy -eq "Sensorhub")) {
 		try {
-			$null = Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/container/$ParentGuid" -Headers @{ "x-api-key" = $ApiKey } -UseBasicParsing -ErrorAction Stop
+			$null = Invoke-SEWebRequest -Method Get -Uri "https://api.server-eye.de/3/container/$ParentGuid" -Headers @{ "x-api-key" = $ApiKey }
 		} catch {
 			$StatusCode = $_.Exception.Response.StatusCode.value__
 			switch ($StatusCode) {
@@ -293,7 +398,7 @@ function Test-SEInvalidParameterization {
 
 	if ($TemplateId) {
 		try {
-			$null = Invoke-WebRequest -Method Get -Uri "https://api.server-eye.de/3/customer/template/$TemplateId/agent" -Headers @{ "x-api-key" = $ApiKey } -UseBasicParsing -ErrorAction Stop
+			$null = Invoke-SEWebRequest -Method Get -Uri "https://api.server-eye.de/3/customer/template/$TemplateId/agent" -Headers @{ "x-api-key" = $ApiKey }
 		} catch {
 			$StatusCode = $_.Exception.Response.StatusCode.value__
 			switch ($StatusCode) {
@@ -350,9 +455,8 @@ function Test-SEPreExistingInstallation {
 	$confDir = "$progdir\Server-Eye\config"
 	$confFileMAC = "$confDir\se3_mac.conf"
 	$confFileCC = "$confDir\se3_cc.conf"
-	$seDataDir = "$env:ProgramData\ServerEye3"
 
-	if (((Test-Path $confFileMAC) -or (Test-Path $confFileCC) -or (Test-Path $seDataDir))) {
+	if (((Test-Path $confFileMAC) -or (Test-Path $confFileCC)) -and -not $Cleanup) {
 		Log "Stopping Execution: A previous installation was detected." -ToScreen -ToFile
 		exit
 	}
@@ -380,7 +484,7 @@ function Get-SEInstallationFiles {
 	Log "Current servereye version is: $SE_version" -ToScreen -ToFile
 	Log "Starting download of ServerEyeSetup.exe... " -ToScreen -ToFile
 	try {
-		$null = Invoke-WebRequest -Uri "$SE_baseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" -OutFile $SetupPath -UseBasicParsing -ErrorAction Stop
+		$null = Invoke-SEWebRequest -Uri "$SE_baseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" -OutFile $SetupPath
 	}
 	catch {
 		Log "Download failed:`n$($_.Exception.Message)`nStopping execution." -ToScreen -ToFile
@@ -472,7 +576,7 @@ function Start-SEInstallation {
 		}
 	} else {
 		$msiLogs = Get-ChildItem -Path $env:TEMP -Filter "Server-Eye*.log" | Sort-Object LastWriteTime -Descending | Select-Object -ExpandProperty Name
-		Log "The installation has failed since no installer.log was written by the servereye Wizard.`nPlease report this to the servereye Helpdesk and include the following files in your ticket: `n$($msiLogs -join "`n")" -ForegroundColor Red -ToScreen -ToFile
+		Log "The installation has failed since no installer.log was written by the servereye Wizard.`nPlease report this to the servereye Helpdesk and include the following files in your ticket: `n`nDirectory: $env:TEMP`n`n$($msiLogs -join "`n")" -ForegroundColor Red -ToScreen -ToFile
 		exit
 	}
 }
@@ -486,10 +590,11 @@ function Add-SETags {
             Start-Sleep -Seconds 10
             $SensorhubId = (Get-Content $CCConfigPath -ErrorAction Stop | Select-String -Pattern "^guid=").ToString().Split("=")[1].Trim()
             if (-not $SensorhubId) {
+				Log "Attempt $($i): Getting Sensorhub GUID..." -ToScreen -ToFile
                 if ($i -eq 120) {
                     Log "Failed to get Sensorhub GUID after 20 minutes, tags can't be added." -ForegroundColor Red -ToScreen -ToFile
+                    return
                 }
-				Log "Attempt $($i): Getting Sensorhub GUID..." -ToScreen -ToFile
                 continue
             }
             break
@@ -500,9 +605,14 @@ function Add-SETags {
         }
     }
 
+	if (-not $SensorhubId) {
+		Log "Could not obtain Sensorhub GUID. Skipping tag assignment." -ForegroundColor Red -ToScreen -ToFile
+		return
+	}
+
 	foreach ($TagID in $TagIDs) {
 		try {
-			$null = Invoke-WebRequest -Method Put -Uri "https://api.server-eye.de/3/container/$SensorhubId/tag/$TagID" -Headers @{ "x-api-key" = $ApiKey } -UseBasicParsing -ErrorAction Stop
+			$null = Invoke-SEWebRequest -Method Put -Uri "https://api.server-eye.de/3/container/$SensorhubId/tag/$TagID" -Headers @{ "x-api-key" = $ApiKey }
 			Log "Successfully added Tag with ID '$($TagID)' to the Sensorhub." -ToScreen -ToFile
 		} catch {
 			$StatusCode = $_.Exception.Response.StatusCode.value__
@@ -535,18 +645,53 @@ function Test-SELogSize {
 		}
 	}
 }
+
+function Resolve-SECustomerID {
+	# If CustomerID contains only digits it is a short customer number and needs to be resolved to the full ID.
+	if ($CustomerID -notmatch '^\d+$') { return }
+
+	Log "Customer value '$CustomerID' looks like a short customer number. Resolving to full CustomerID via API..." -ToScreen -ToFile
+
+	try {
+		$Customers = Invoke-SERestMethod -Method Get -Uri "https://api.server-eye.de/3/customer" -Headers @{ "x-api-key" = $ApiKey }
+	} catch {
+		Log "Failed to retrieve customer list from API: $($_.Exception.Message)" -ForegroundColor Red -ToScreen -ToFile
+		exit
+	}
+
+	$ShortNumber = [int64]$CustomerID
+	$Match = @($Customers | Where-Object { $_.customerNumberExtern -eq $ShortNumber })
+
+	if ($Match.Count -eq 0) {
+		Log "No customer found with short number '$CustomerID'. Verify the number or use the full CustomerID directly." -ForegroundColor Red -ToScreen -ToFile
+		exit
+	}
+
+	if ($Match.Count -gt 1) {
+		Log "Multiple customers matched short number '$CustomerID'. Please use the full CustomerID instead." -ForegroundColor Red -ToScreen -ToFile
+		exit
+	}
+
+	$script:CustomerID = $Match[0].customerId
+	Log "Resolved short customer number to full CustomerID '$($script:CustomerID)'." -ToScreen -ToFile
+}
 #endregion
 
 #region Variables
 $ProgressPreference = 'SilentlyContinue'
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12 # Ensure TLS 1.2 is used for web requests
 
-$LogPath = $LogPath | Join-Path -ChildPath "Deploy-ServerEye.log"
+if ($Deploy -eq "SensorhubOnly") { $Deploy = "Sensorhub" }
+if ([System.IO.Path]::HasExtension($LogPath)) {
+	# LogPath was provided as a full file path (e.g. via -LogFile alias)
+} else {
+	$LogPath = $LogPath | Join-Path -ChildPath "Deploy-ServerEye.log"
+}
 $Error500Msg = "Server Error: An internal server error occurred. Please check status.server-eye.de for a potential outage.`nIf theres no current outage, please contact the servereye Helpdesk."
 $SE_occServer = "occ.server-eye.de"
 $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
-$SE_Version = Invoke-RestMethod -Uri "$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersion"
+$SE_Version = Invoke-SERestMethod -Uri "$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersion"
 $ProgramFiles = Get-ProgramFilesDirectory
 $CCConfigPath = "$ProgramFiles\Server-Eye\config\se3_cc.conf"
 $SetupPath = Join-Path -Path $DeployPath -ChildPath "ServerEyeSetup.exe"
@@ -555,6 +700,7 @@ $SetupPath = Join-Path -Path $DeployPath -ChildPath "ServerEyeSetup.exe"
 #region Main execution
 Test-SELogSize
 Test-SEInvalidParameterization
+Resolve-SECustomerID
 Test-SESupportedOSVersion
 if (-not $SkipInstalledCheck) { Test-SEPreExistingInstallation }
 Test-SEDeployPath
