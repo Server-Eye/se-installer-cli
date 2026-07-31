@@ -206,19 +206,22 @@ function Log {
         $ToFile = $false,
 
         [Parameter(Mandatory=$false)]
-        [System.ConsoleColor]
-        $ForegroundColor = $Host.UI.RawUI.ForegroundColor,
+		[System.ConsoleColor]
+		$ForegroundColor,
 
         [Parameter(Mandatory=$false)]
-        [System.ConsoleColor]
-        $BackgroundColor = $Host.UI.RawUI.BackgroundColor
+		[System.ConsoleColor]
+		$BackgroundColor
     )
 
     $Stamp = (Get-Date).toString("dd/MM/yyyy HH:mm:ss")
     $LogMessage = "[$Stamp] $LogMessage"
 
     if ($ToScreen) {
-        Write-Host -Object $LogMessage -ForegroundColor $ForegroundColor -BackgroundColor $BackgroundColor
+		$WriteHostParams = @{ Object = $LogMessage }
+		if ($PSBoundParameters.ContainsKey('ForegroundColor')) { $WriteHostParams.ForegroundColor = $ForegroundColor }
+		if ($PSBoundParameters.ContainsKey('BackgroundColor')) { $WriteHostParams.BackgroundColor = $BackgroundColor }
+		Write-Host @WriteHostParams
     }
     if ($ToFile) {
         Add-Content -Path $LogPath -Value $LogMessage
