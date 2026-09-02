@@ -69,6 +69,9 @@
 	.PARAMETER ProxyPassword
 	The proxy password for authentication. Optional.
 
+	.PARAMETER Beta
+	Switch. Uses the beta ThinWizard installer. Optional.
+
 	.EXAMPLE
 	PS> .\Deploy-ServerEye.ps1 -Deploy "Sensorhub" -ParentGuid "7c8e1a2b-4d5f-4e6b-8c9d-123456789abc" -CustomerID "2f4a50f9-073f-4f26-93e8-978edefd30b0" -ApiKey "3f5a50f9-073f-4f26-93f8-978edefd31d1" -Silent
 	Installs a Sensorhub for the customer, assigns it to the provided OCC-Connector, using the provided API key, in silent mode.
@@ -163,6 +166,10 @@ param(
 	[Parameter(Mandatory=$false)]
 	[string]
 	$ProxyPassword,
+
+	[Parameter(Mandatory=$false)]
+	[switch]
+	$Beta,
 
 	# Legacy parameters for backward compatibility with the old gpo_install.ps1 script
 	[Parameter(Mandatory=$false)]
@@ -371,7 +378,17 @@ function Test-SEInvalidParameterization {
 	}
 
 	if ($Deploy -eq "Sensorhub" -and (-not $ParentGuid)) {
-		Log "Deployment type 'Sensorhub' was chosen, but no ParentGuid was provided. The Sensorhub will choose its OCC-Connector via UPNP discovery." -ToScreen -ToFile
+		if ($Beta) {
+			Log "Invalid Parameters: Beta Sensorhub deployments require -ParentGuid for the ThinWizard connectorId parameter." -ToScreen -ToFile
+			$StopExecution = $true
+		} else {
+			Log "Deployment type 'Sensorhub' was chosen, but no ParentGuid was provided. The Sensorhub will choose its OCC-Connector via UPNP discovery." -ToScreen -ToFile
+		}
+	}
+
+	if ($Beta -and $TemplateId) {
+		Log "Invalid Parameters: The servereye Beta ThinWizard currently does not support the use of templates. Please remove the parameter '-TemplateId' when using the Beta version." -ToScreen -ToFile
+		$StopExecution = $true
 	}
 
 	if ($Deploy -eq "Sensorhub" -and ($ConnectorPort)) {
@@ -484,10 +501,18 @@ function Test-SEDeployPath {
 }
 
 function Get-SEInstallationFiles {
-	Log "Current servereye version is: $SE_version" -ToScreen -ToFile
-	Log "Starting download of ServerEyeSetup.exe... " -ToScreen -ToFile
+	if ($Beta) {
+		Log "Current servereye version is: Beta" -ToScreen -ToFile
+		Log "Starting download of servereye.ThinWizard.exe... " -ToScreen -ToFile
+		$downloadUri = "https://cloud.server-eye.de/public.php/dav/files/iFGRDoHiCR2rrda/servereye.ThinWizard.exe"
+	} else {
+		Log "Current servereye version is: $SE_version" -ToScreen -ToFile
+		Log "Starting download of ServerEyeSetup.exe... " -ToScreen -ToFile
+		$downloadUri = "$SE_baseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe"
+	}
+
 	try {
-		$null = Invoke-SEWebRequest -Uri "$SE_baseDownloadUrl/$SE_cloudIdentifier/ServerEyeSetup.exe" -OutFile $SetupPath
+		$null = Invoke-SEWebRequest -Uri $downloadUri -OutFile $SetupPath
 	}
 	catch {
 		Log "Download failed:`n$($_.Exception.Message)`nStopping execution." -ToScreen -ToFile
@@ -522,40 +547,66 @@ function Start-SEInstallation {
 	Get-SEInstallationFiles
 	Log "Download routine finished." -ToScreen -ToFile
 
-	$parameterString = ""
+	if ($Beta) {
+		$installerArguments = @("--apiKey=$ApiKey", "--customerId=$CustomerID", "--silent=true")
 
-	# These are specific to the installation type
-	if ($Deploy -eq "OCC-Connector") {
-		Log "Starting servereye OCC-Connector installation..." -ToScreen -ToFile
-		$parameterString += "newConnector"
-	} elseif ($Deploy -eq "Sensorhub") {
-		Log "Starting servereye Sensorhub installation..." -ToScreen -ToFile
-		$parameterString += "install"
-		if ($ParentGuid) {
-			$parameterString += " --cID=$ParentGuid"
+		if ($Deploy -eq "OCC-Connector") {
+			Log "Starting servereye OCC-Connector installation..." -ToScreen -ToFile
+			$installerArguments += "--connectorName=$env:COMPUTERNAME"
+		} elseif ($Deploy -eq "Sensorhub") {
+			Log "Starting servereye Sensorhub installation..." -ToScreen -ToFile
+			if ($ParentGuid) {
+				$installerArguments += "--connectorId=$ParentGuid"
+			}
 		}
+
+		if ($ProxyUrl) { $installerArguments += "--proxyUrl=$ProxyUrl" }
+		if ($ProxyPort) { $installerArguments += "--proxyPort=$ProxyPort" }
+		if ($ProxyDomain) { $installerArguments += "--proxyDomain=$ProxyDomain" }
+		if ($ProxyUser) { $installerArguments += "--proxyUser=$ProxyUser" }
+		if ($ProxyPassword) { $installerArguments += "--proxyPassword=$ProxyPassword" }
+	} else {
+		$parameterString = ""
+
+		# These are specific to the installation type
+		if ($Deploy -eq "OCC-Connector") {
+			Log "Starting servereye OCC-Connector installation..." -ToScreen -ToFile
+			$parameterString += "newConnector"
+		} elseif ($Deploy -eq "Sensorhub") {
+			Log "Starting servereye Sensorhub installation..." -ToScreen -ToFile
+			$parameterString += "install"
+			if ($ParentGuid) {
+				$parameterString += " --cID=$ParentGuid"
+			}
+		}
+
+		# These are common to all installations
+		if ($ApiKey) { $parameterString += " --apiKey=$ApiKey" }
+		if ($CustomerID) { $parameterString += " --customerID=$CustomerID" }
+		if ($TemplateId) { $parameterString += " --templateID=$TemplateId" }
+		if ($ConnectorPort) { $parameterString += " --port=$ConnectorPort" }
+		if ($ProxyUrl) { $parameterString += " --proxyUrl=$ProxyUrl" }
+		if ($ProxyPort) { $parameterString += " --proxyPort=$ProxyPort" }
+		if ($ProxyDomain) { $parameterString += " --proxyDomain=$ProxyDomain" }
+		if ($ProxyUser) { $parameterString += " --proxyUser=$ProxyUser" }
+		if ($ProxyPassword) { $parameterString += " --proxyPassword=$ProxyPassword" }
+		if ($Cleanup) { $parameterString += " --cleanup=true" }
+
+		# This always needs to be set
+		$parameterString += " --silent=true"
 	}
 
-	# These are common to all installations
-	if ($ApiKey) { $parameterString += " --apiKey=$ApiKey" }
-	if ($CustomerID) { $parameterString += " --customerID=$CustomerID" }
-	if ($TemplateId) { $parameterString += " --templateID=$TemplateId" }
-	if ($ConnectorPort) { $parameterString += " --port=$ConnectorPort" }
-	if ($ProxyUrl) { $parameterString += " --proxyUrl=$ProxyUrl" }
-	if ($ProxyPort) { $parameterString += " --proxyPort=$ProxyPort" }
-	if ($ProxyDomain) { $parameterString += " --proxyDomain=$ProxyDomain" }
-	if ($ProxyUser) { $parameterString += " --proxyUser=$ProxyUser" }
-	if ($ProxyPassword) { $parameterString += " --proxyPassword=$ProxyPassword" }
-	if ($Cleanup) { $parameterString += " --cleanup=true" }
-
-	# This always needs to be set
-	$parameterString += " --silent=true"
-	
-	# Execute ServerEyeSetup.exe with the constructed parameter string
 	try {
-		Start-Process -FilePath $SetupPath -ArgumentList "ARGUMENTS=`"$parameterString`" /quiet" -Wait -ErrorAction Stop
+		if ($Beta) {
+			$installerProcess = Start-Process -FilePath $SetupPath -ArgumentList $installerArguments -Wait -PassThru -ErrorAction Stop
+			if ($installerProcess.ExitCode -ne 0) {
+				throw "servereye.ThinWizard.exe exited with code $($installerProcess.ExitCode)."
+			}
+		} else {
+			Start-Process -FilePath $SetupPath -ArgumentList "ARGUMENTS=`"$parameterString`" /quiet" -Wait -ErrorAction Stop
+		}
 	} catch {
-		Log "ServerEyeSetup.exe failed to start. Please report this to the servereye Helpdesk. Error: `n$($_.Exception.Message)" -ForegroundColor Red -ToScreen -ToFile
+		Log "The servereye Beta Wizard installation has failed with Exit Code $($installerProcess.ExitCode). `nPlease report this to the servereye Helpdesk and include the following file in your ticket: '$env:ProgramData\servereye\logs\wizard\servereye.thinwizard.log'" -ForegroundColor Red -ToScreen -ToFile
 		exit
 	}
 	
@@ -566,21 +617,29 @@ function Start-SEInstallation {
 		Log "Could not remove installation file '$SetupPath'. Please remove it manually." -ForegroundColor Yellow -ToScreen -ToFile
 	}
 
-	# Read the content of the installer log file
-	$installerLogPath = "$env:ProgramData\ServerEye3\logs\installer.log"
-	if (Test-Path $installerLogPath) {
-		$installerLogContent = Get-Content -Path $installerLogPath -Raw
-		if ($installerLogContent -like "*Successfully installed*") {
-			Log "Installation finished successfully!" -ForegroundColor Green -ToScreen -ToFile
-			Log "Please visit https://occ.server-eye.de to add Sensors." -ForegroundColor Green -ToScreen
+	if ($Beta) {
+		Log "Installation finished successfully!" -ForegroundColor Green -ToScreen -ToFile
+		Log "Please visit https://occ.server-eye.de to add Sensors." -ForegroundColor Green -ToScreen
+		return
+	}
+
+	# Read the content of the installer log file if not running the beta version
+	if (-not $Beta) {
+		$installerLogPath = "$env:ProgramData\ServerEye3\logs\installer.log"
+		if (Test-Path $installerLogPath) {
+			$installerLogContent = Get-Content -Path $installerLogPath -Raw
+			if ($installerLogContent -like "*Successfully installed*") {
+				Log "Installation finished successfully!" -ForegroundColor Green -ToScreen -ToFile
+				Log "Please visit https://occ.server-eye.de to add Sensors." -ForegroundColor Green -ToScreen
+			} else {
+				Log "The installation has failed. Please report this to the servereye Helpdesk and include the following file in your ticket: '$installerLogPath'" -ForegroundColor Red -ToScreen -ToFile
+				exit
+			}
 		} else {
-			Log "The installation has failed. Please report this to the servereye Helpdesk and include the following file in your ticket: '$installerLogPath'" -ForegroundColor Red -ToScreen -ToFile
+			$msiLogs = Get-ChildItem -Path $env:TEMP -Filter "Server-Eye*.log" | Sort-Object LastWriteTime -Descending | Select-Object -ExpandProperty Name
+			Log "The installation has failed since no installer.log was written by the servereye Wizard.`nPlease report this to the servereye Helpdesk and include the following files in your ticket: `n`nDirectory: $env:TEMP`n`n$($msiLogs -join "`n")" -ForegroundColor Red -ToScreen -ToFile
 			exit
 		}
-	} else {
-		$msiLogs = Get-ChildItem -Path $env:TEMP -Filter "Server-Eye*.log" | Sort-Object LastWriteTime -Descending | Select-Object -ExpandProperty Name
-		Log "The installation has failed since no installer.log was written by the servereye Wizard.`nPlease report this to the servereye Helpdesk and include the following files in your ticket: `n`nDirectory: $env:TEMP`n`n$($msiLogs -join "`n")" -ForegroundColor Red -ToScreen -ToFile
-		exit
 	}
 }
 
@@ -694,10 +753,11 @@ $Error500Msg = "Server Error: An internal server error occurred. Please check st
 $SE_occServer = "occ.server-eye.de"
 $SE_baseDownloadUrl = "https://$SE_occServer/download"
 $SE_cloudIdentifier = "se"
-$SE_Version = Invoke-SERestMethod -Uri "$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersion"
+$SE_Version = if ($Beta) { "Beta" } else { Invoke-SERestMethod -Uri "$SE_baseDownloadUrl/$SE_cloudIdentifier/currentVersion" }
 $ProgramFiles = Get-ProgramFilesDirectory
 $CCConfigPath = "$ProgramFiles\Server-Eye\config\se3_cc.conf"
-$SetupPath = Join-Path -Path $DeployPath -ChildPath "ServerEyeSetup.exe"
+$SetupFileName = if ($Beta) { "servereye.ThinWizard.exe" } else { "ServerEyeSetup.exe" }
+$SetupPath = Join-Path -Path $DeployPath -ChildPath $SetupFileName
 #endregion
 
 #region Main execution
