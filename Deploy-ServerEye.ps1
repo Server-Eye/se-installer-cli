@@ -552,7 +552,7 @@ function Start-SEInstallation {
 
 		if ($Deploy -eq "OCC-Connector") {
 			Log "Starting servereye OCC-Connector installation..." -ToScreen -ToFile
-			$installerArguments += "--connectorName=$env:COMPUTERNAME"
+			$installerArguments += "--connectorName=`"$env:COMPUTERNAME (OCC-Connector)`""
 		} elseif ($Deploy -eq "Sensorhub") {
 			Log "Starting servereye Sensorhub installation..." -ToScreen -ToFile
 			if ($ParentGuid) {
