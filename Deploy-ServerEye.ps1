@@ -82,7 +82,7 @@
 
 	.NOTES
 	Author  : servereye
-	Version : 2.0
+	Version : 2.1
 
 	.LINK
 	https://github.com/Server-Eye/se-installer-cli
@@ -386,6 +386,13 @@ function Test-SEInvalidParameterization {
 		}
 	}
 
+	# Temporary: Beta deployments currently do not support OCC-Connector installations.
+	if ($Beta -and $Deploy -eq "OCC-Connector") {
+		Log "Invalid Parameters: The servereye Beta can't be deployed as an OCC-Connector currently. Please use -Deploy Sensorhub instead and provide a ParentGuid." -ToScreen -ToFile
+		$StopExecution = $true
+	}
+
+	# Temporary: Beta deployments currently do not support the use of templates.
 	if ($Beta -and $TemplateId) {
 		Log "Invalid Parameters: The servereye Beta ThinWizard currently does not support the use of templates. Please remove the parameter '-TemplateId' when using the Beta version." -ToScreen -ToFile
 		$StopExecution = $true
